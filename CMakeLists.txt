@@ -94,6 +94,8 @@ LIST (APPEND core_SOURCES
     ${CMAKE_SOURCE_DIR}/private/earthmodel-service/Vector3D.cxx
     ${CMAKE_SOURCE_DIR}/private/earthmodel-service/DensityDist.cxx
     ${CMAKE_SOURCE_DIR}/private/earthmodel-service/Polynomial.cxx
+    ${CMAKE_SOURCE_DIR}/private/earthmodel-service/MaterialModel.cxx
+    ${CMAKE_SOURCE_DIR}/private/earthmodel-service/EarthModel.cxx
     ${CMAKE_SOURCE_DIR}/private/phys-services/LICrossSection.cxx
 )
 
@@ -201,6 +203,7 @@ ELSE(NOT PYTHON FOUND)
     MESSAGE("-- no python. skipping")
 ENDIF(PYTHON_FOUND)
 
+add_subdirectory(tests)
 
 MESSAGE("")
 MESSAGE("Done!")

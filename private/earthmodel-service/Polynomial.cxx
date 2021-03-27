@@ -1,9 +1,10 @@
-#include <earthmodel-service/Polynomial.h>
-#include <earthmodel-service/Geometry.h>
 #include <algorithm>
 #include <cmath>
 #include <functional>
 #include <iostream>
+
+#include "earthmodel-service/Polynomial.h"
+#include "earthmodel-service/Geometry.h"
 
 // %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 // %%%%%%%%%%%%%%%%%%%       Polynom      %%%%%%%%%%%%%%%%%%%%
@@ -11,10 +12,8 @@
 
 using namespace earthmodel;
 
-Polynom::Polynom(std::vector<double> coefficients) : N_(coefficients.size()) {
-    coeff_ = new double[N_];
-
-    std::copy(coefficients.begin(), coefficients.end(), coeff_);
+Polynom::Polynom(const std::vector<double>& coefficients) : N_(coefficients.size()) {
+    coeff_ = coefficients;
 }
 
 Polynom::Polynom(const Polynom& poly) : N_(poly.N_), coeff_(poly.coeff_) {}
@@ -33,7 +32,10 @@ bool Polynom::operator!=(const Polynom& polynom) const {
     return !(*this == polynom);
 }
 
-double Polynom::evaluate(double x) {
+double Polynom::evaluate(double x) const {
+    if(N_ == 0) {
+        return 0.0;
+    }
     double aux = coeff_[N_ - 1];
 
     for (int i = N_ - 2; i >= 0; --i)
@@ -46,6 +48,9 @@ void Polynom::shift(double x) {
     // Shaw and Traub method for the Taylor shift
     // https://planetcalc.com/7726/#fnref1:shaw
 
+    std::function<int(int)> rev = [=] (int i) -> int {
+        return N_-1 - i;
+    };
     if (std::fabs(x) > Geometry::GEOMETRY_PRECISION) {
         int n = N_ - 1;
         double** t = new double*[N_];
@@ -57,19 +62,28 @@ void Polynom::shift(double x) {
             t[i][i + 1] = coeff_[n] * std::pow(x, n);
         }
 
-        for (int j = 0; j <= n - 1; ++j) {
+        for (int j = 0; j < n; ++j) {
             for (int i = j + 1; i <= n; ++i) {
                 t[i][j + 1] = t[i - 1][j] + t[i - 1][j + 1];
             }
         }
 
-        for (int i = 0; i <= n - 1; ++i) {
+        for (int i = 0; i < n; ++i) {
             coeff_[i] = t[n][i + 1] / std::pow(x, i);
         }
+
+        for (int count = 0; count < N_; ++count)
+            delete t[count];
     }
 }
 
-Polynom Polynom::GetDerivative() {
+void Polynom::scale(double x) {
+    for(int i = 0; i<N_; ++i) {
+        coeff_[i] *= std::pow(x, i);
+    }
+}
+
+Polynom Polynom::GetDerivative() const {
     std::vector<double> derivative_coeff_;
 
     for (auto i = 1; i < N_; ++i)
@@ -78,7 +92,7 @@ Polynom Polynom::GetDerivative() {
     return Polynom(derivative_coeff_);
 }
 
-Polynom Polynom::GetAntiderivative(double constant) {
+Polynom Polynom::GetAntiderivative(double constant) const {
     std::vector<double> derivative_coeff_{constant};
 
     for (auto i = 0; i < N_; ++i)
@@ -88,8 +102,7 @@ Polynom Polynom::GetAntiderivative(double constant) {
 }
 
 std::vector<double> Polynom::GetCoefficient() const {
-    std::vector<double> v(coeff_, coeff_ + N_);
-    return v;
+    return coeff_;
 }
 
 std::function<double(double)> Polynom::GetFunction() {

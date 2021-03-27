@@ -27,7 +27,8 @@
  ******************************************************************************/
 
 
-#pragma once
+#ifndef LI_Vector3D_H
+#define LI_Vector3D_H
 
 #include <sstream>
 
@@ -63,7 +64,7 @@ public:
     friend Vector3D vector_product(const Vector3D& vec1, const Vector3D& vec2);
     Vector3D operator-() const;
     double magnitude() const;
-    void normalise();
+    void normalize();
     void deflect(const double , const double);
 
     struct CartesianCoordinates {
@@ -102,6 +103,7 @@ public:
         spherical_.radius_  = radius;
         spherical_.azimuth_ = azimuth;
         spherical_.zenith_  = zenith;
+        CalculateCartesianFromSpherical();
     }
     // void SetCylindricalCoordinates(const double radius, const double azimuth, const double height)
     // {
@@ -130,3 +132,6 @@ private:
 };
 
 } // namespace earthmodel
+
+#endif // LI_Vector3D_H
+

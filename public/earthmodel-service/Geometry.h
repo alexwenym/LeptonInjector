@@ -26,15 +26,14 @@
  *                                                                            *
  ******************************************************************************/
 
-
-#pragma once
+#ifndef LI_Geometry_H
+#define LI_Geometry_H
 
 #include <iostream>
 #include <map>
 #include <memory>
 
-#include <earthmodel-service/Vector3D.h>
-
+#include "earthmodel-service/Vector3D.h"
 
 namespace earthmodel {
 
@@ -45,10 +44,16 @@ public:
     struct ParticleLocation {
         enum Enum { InfrontGeometry= 0, InsideGeometry, BehindGeometry };
     };
-
+    struct Intersection {
+        double distance;
+        int hierarchy;
+        Vector3D position;
+        bool entering;
+    };
 public:
     Geometry(const std::string);
     Geometry(const std::string, const Vector3D position);
+    Geometry(const std::string, const Vector3D position, int hierarchy);
     Geometry(const Geometry&);
     //Geometry(const nlohmann::json&);
 
@@ -92,6 +97,12 @@ public:
      */
     virtual std::pair<double, double> DistanceToBorder(const Vector3D& position, const Vector3D& direction) const = 0;
 
+
+    /*!
+     * Calculates the intersections of a ray with the geometry surface
+     */
+    virtual std::vector<Intersection> Intersections(Vector3D const & position, Vector3D const & direction) const = 0;
+
     /*!
      * Calculates the distance to the closest approch to the geometry center
      */
@@ -132,6 +143,7 @@ class Box : public Geometry
 public:
     Box();
     Box(const Vector3D position, double x, double y, double z);
+    Box(const Vector3D position, double x, double y, double z, int hierarchy);
     Box(const Box&);
     //Box(const nlohmann::json& config);
 
@@ -145,6 +157,7 @@ public:
 
     // Methods
     std::pair<double, double> DistanceToBorder(const Vector3D& position, const Vector3D& direction) const override;
+    std::vector<Intersection> Intersections(Vector3D const & position, Vector3D const & direction) const override;
 
     // Getter & Setter
     double GetX() const { return x_; }
@@ -169,6 +182,7 @@ class Cylinder : public Geometry
 public:
     Cylinder();
     Cylinder(const Vector3D position, double radius, double inner_radius, double z);
+    Cylinder(const Vector3D position, double radius, double inner_radius, double z, int hierarchy);
     Cylinder(const Cylinder&);
     //Cylinder(const nlohmann::json& config);
 
@@ -182,6 +196,7 @@ public:
 
     // Methods
     std::pair<double, double> DistanceToBorder(const Vector3D& position, const Vector3D& direction) const override;
+    std::vector<Intersection> Intersections(Vector3D const & position, Vector3D const & direction) const override;
 
     // Getter & Setter
     double GetInnerRadius() const { return inner_radius_; }
@@ -206,6 +221,7 @@ class Sphere : public Geometry
 public:
     Sphere();
     Sphere(const Vector3D position, double radius, double inner_radius);
+    Sphere(const Vector3D position, double radius, double inner_radius, int hierarchy);
     Sphere(const Sphere&);
     //Sphere(const nlohmann::json& config);
 
@@ -220,6 +236,7 @@ public:
 
     // Methods
     std::pair<double, double> DistanceToBorder(const Vector3D& position, const Vector3D& direction) const override;
+    std::vector<Intersection> Intersections(Vector3D const & position, Vector3D const & direction) const override;
 
     // Getter & Setter
     double GetInnerRadius() const { return inner_radius_; }
@@ -245,3 +262,6 @@ namespace earthmodel {
 namespace earthmodel {
     const std::array<std::string, 3>  Geometry_Name = { "sphere", "box", "cylinder" };
 } // namespace earthmodel
+
+#endif // LI_Geometry_H
+

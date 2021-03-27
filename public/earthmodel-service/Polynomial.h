@@ -1,3 +1,5 @@
+#ifndef LI_Polynomial_H
+#define LI_Polynomial_H
 
 /******************************************************************************
  *                                                                            *
@@ -26,9 +28,6 @@
  *                                                                            *
  ******************************************************************************/
 
-
-#pragma once
-
 #include <functional>
 #include <vector>
 #include <fstream>
@@ -41,7 +40,7 @@ namespace earthmodel {
 
 class Polynom {
    public:
-    Polynom(std::vector<double> coefficients);
+    Polynom(const std::vector<double>& coefficients);
     Polynom(const Polynom&);
 
     ~Polynom() {};
@@ -52,11 +51,12 @@ class Polynom {
     bool operator==(const Polynom& polynom) const;
     bool operator!=(const Polynom& polynom) const;
 
-    double evaluate(double x);
+    double evaluate(double x) const;
     void shift(double x);
+    void scale(double x);
 
-    Polynom GetDerivative();
-    Polynom GetAntiderivative(double constant);
+    Polynom GetDerivative() const;
+    Polynom GetAntiderivative(double constant) const;
     std::vector<double> GetCoefficient() const;
 
     friend std::ostream& operator<<(std::ostream& os, const Polynom& p);
@@ -65,7 +65,7 @@ class Polynom {
 
    protected:
     int N_;
-    double* coeff_;
+    std::vector<double> coeff_;
 };
 
 class MathException: public std::exception {
@@ -91,3 +91,6 @@ double NewtonRaphson(std::function<double(double)> f, std::function<double(doubl
         double xinit, int MAX_STEPS = 101, double xacc = 1.e-6);
 
 }  // namespace earthmodel
+
+#endif // LI_Polynomial_H
+
