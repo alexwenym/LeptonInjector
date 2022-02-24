@@ -1,3 +1,4 @@
+#pragma once
 #ifndef LI_Distributions_H
 #define LI_Distributions_H
 
@@ -47,7 +48,10 @@ public:
         }
     }
     bool operator==(WeightableDistribution const & distribution) const;
-    virtual bool compare(WeightableDistribution const & distribution) const = 0;
+    bool operator<(WeightableDistribution const & distribution) const;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const = 0;
+    virtual bool less(WeightableDistribution const & distribution) const = 0;
 };
 
 class InjectionDistribution : public WeightableDistribution {
@@ -113,7 +117,9 @@ public:
             throw std::runtime_error("PrimaryInjector only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class TargetMomentumDistribution : public InjectionDistribution {
@@ -140,7 +146,9 @@ public:
             throw std::runtime_error("TargetMomentumDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const = 0;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const = 0;
+    virtual bool less(WeightableDistribution const & distribution) const = 0;
 };
 
 class TargetAtRest : public TargetMomentumDistribution {
@@ -168,7 +176,9 @@ public:
             throw std::runtime_error("TargetAtRest only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class PrimaryEnergyDistribution : public InjectionDistribution {
@@ -197,7 +207,9 @@ public:
             throw std::runtime_error("PrimaryEnergyDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const = 0;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const = 0;
+    virtual bool less(WeightableDistribution const & distribution) const = 0;
 };
 
 class PowerLaw : public PrimaryEnergyDistribution {
@@ -238,7 +250,9 @@ public:
             throw std::runtime_error("PowerLaw only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class ModifiedMoyalPlusExponentialEnergyDistribution : public PrimaryEnergyDistribution {
@@ -295,7 +309,9 @@ public:
             throw std::runtime_error("ModifiedMoyalPlusExponentialEnergyDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class PrimaryDirectionDistribution : public InjectionDistribution {
@@ -325,7 +341,9 @@ public:
             throw std::runtime_error("PrimaryDirectionDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const = 0;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const = 0;
+    virtual bool less(WeightableDistribution const & distribution) const = 0;
 };
 
 class IsotropicDirection : public PrimaryDirectionDistribution {
@@ -351,7 +369,9 @@ private:
             throw std::runtime_error("IsotropicDirection only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class FixedDirection : public PrimaryDirectionDistribution {
@@ -388,7 +408,9 @@ private:
             throw std::runtime_error("FixedDirection only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class Cone : public PrimaryDirectionDistribution {
@@ -429,7 +451,9 @@ private:
             throw std::runtime_error("Cone only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class VertexPositionDistribution : public InjectionDistribution {
@@ -459,7 +483,9 @@ public:
             throw std::runtime_error("VertexPositionDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override = 0;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override = 0;
+    virtual bool less(WeightableDistribution const & distribution) const = 0;
 };
 
 class CylinderVolumePositionDistribution : public VertexPositionDistribution {
@@ -495,7 +521,9 @@ public:
             throw std::runtime_error("CylinderVolumePositionDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class DepthFunction {
@@ -518,7 +546,10 @@ public:
         }
     }
     bool operator==(DepthFunction const & distribution) const;
-    virtual bool compare(DepthFunction const & distribution) const = 0;
+    bool operator<(DepthFunction const & distribution) const;
+protected:
+    virtual bool equal(DepthFunction const & distribution) const = 0;
+    virtual bool less(DepthFunction const & distribution) const = 0;
 };
 
 class RangeFunction {
@@ -541,7 +572,10 @@ public:
         }
     }
     bool operator==(RangeFunction const & distribution) const;
-    virtual bool compare(RangeFunction const & distribution) const = 0;
+    bool operator<(RangeFunction const & distribution) const;
+protected:
+    virtual bool equal(RangeFunction const & distribution) const = 0;
+    virtual bool less(RangeFunction const & distribution) const = 0;
 };
 
 class DecayRangeFunction : public RangeFunction {
@@ -586,8 +620,9 @@ public:
             throw std::runtime_error("DecayRangeFunction only supports version <= 0!");
         }
     }
-    bool operator==(RangeFunction const & distribution) const;
-    virtual bool compare(RangeFunction const & distribution) const override;
+protected:
+    virtual bool equal(RangeFunction const & distribution) const override;
+    virtual bool less(RangeFunction const & distribution) const override;
 };
 
 class ColumnDepthPositionDistribution : public VertexPositionDistribution {
@@ -638,7 +673,9 @@ public:
             throw std::runtime_error("ColumnDepthPositionDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class RangePositionDistribution : public VertexPositionDistribution {
@@ -689,7 +726,9 @@ public:
             throw std::runtime_error("RangePositionDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class DecayRangePositionDistribution : public VertexPositionDistribution {
@@ -739,7 +778,9 @@ public:
             throw std::runtime_error("DecayRangePositionDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 class PrimaryNeutrinoHelicityDistribution : public InjectionDistribution {
@@ -768,7 +809,9 @@ public:
             throw std::runtime_error("PrimaryNeutrinoHelicityDistribution only supports version <= 0!");
         }
     }
-    virtual bool compare(WeightableDistribution const & distribution) const override;
+protected:
+    virtual bool equal(WeightableDistribution const & distribution) const override;
+    virtual bool less(WeightableDistribution const & distribution) const override;
 };
 
 } // namespace LeptonInjector

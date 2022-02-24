@@ -1,7 +1,19 @@
+#include <tuple>
+
 #include "LeptonInjector/Distributions.h"
 #include "earthmodel-service/EarthModelCalculator.h"
 
 namespace LeptonInjector {
+
+namespace {
+    double one_minus_exp_of_negative(double x) {
+        if(x < 1e-1) {
+            return std::exp(std::log(x) - x/2.0 + x*x/24.0 - x*x*x*x/2880.0);
+        } else {
+            return 1.0 - std::exp(-x);
+        }
+    }
+}
 
 //---------------
 // class WeightableDistribution
@@ -12,7 +24,17 @@ std::vector<std::string> WeightableDistribution::DensityVariables() const {
 }
 
 bool WeightableDistribution::operator==(WeightableDistribution const & distribution) const {
-    return this->compare(distribution);
+    if(this == &distribution)
+        return true;
+    else
+        return this->equal(distribution);
+}
+
+bool WeightableDistribution::operator<(WeightableDistribution const & distribution) const {
+    if(typeid(this) == typeid(&distribution))
+        return this->less(distribution);
+    else
+        return std::type_index(typeid(this)) < std::type_index(typeid(&distribution));
 }
 
 //---------------
@@ -70,13 +92,24 @@ std::shared_ptr<InjectionDistribution> PrimaryInjector::clone() const {
     return std::shared_ptr<InjectionDistribution>(new PrimaryInjector(*this));
 }
 
-bool PrimaryInjector::compare(WeightableDistribution const & other) const {
+bool PrimaryInjector::equal(WeightableDistribution const & other) const {
     const PrimaryInjector* x = dynamic_cast<const PrimaryInjector*>(&other);
 
     if(!x)
         return false;
     else
-        return primary_type == x->primary_type and primary_mass == x->primary_mass;
+        return
+            std::tie(primary_type, primary_mass)
+            ==
+            std::tie(x->primary_type, x->primary_mass);
+}
+
+bool PrimaryInjector::less(WeightableDistribution const & other) const {
+    const PrimaryInjector* x = dynamic_cast<const PrimaryInjector*>(&other);
+    return
+        std::tie(primary_type, primary_mass)
+        <
+        std::tie(x->primary_type, x->primary_mass);
 }
 
 
@@ -123,13 +156,17 @@ std::string TargetAtRest::Name() const {
     return "TargetAtRest";
 }
 
-bool TargetAtRest::compare(WeightableDistribution const & other) const {
+bool TargetAtRest::equal(WeightableDistribution const & other) const {
     const TargetAtRest* x = dynamic_cast<const TargetAtRest*>(&other);
 
     if(!x)
         return false;
     else
         return true;
+}
+
+bool TargetAtRest::less(WeightableDistribution const & other) const {
+    return false;
 }
 
 //---------------
@@ -188,15 +225,24 @@ std::shared_ptr<InjectionDistribution> PowerLaw::clone() const {
     return std::shared_ptr<InjectionDistribution>(new PowerLaw(*this));
 }
 
-bool PowerLaw::compare(WeightableDistribution const & other) const {
+bool PowerLaw::equal(WeightableDistribution const & other) const {
     const PowerLaw* x = dynamic_cast<const PowerLaw*>(&other);
 
     if(!x)
         return false;
     else
-        return energyMin == x->energyMin
-            and energyMax == x->energyMax
-            and powerLawIndex == x->powerLawIndex;
+        return
+            std::tie(energyMin, energyMax, powerLawIndex)
+            ==
+            std::tie(x->energyMin, x->energyMax, x->powerLawIndex);
+}
+
+bool PowerLaw::less(WeightableDistribution const & other) const {
+    const PowerLaw* x = dynamic_cast<const PowerLaw*>(&other);
+    return
+        std::tie(energyMin, energyMax, powerLawIndex)
+        <
+        std::tie(x->energyMin, x->energyMax, x->powerLawIndex);
 }
 
 //---------------
@@ -271,19 +317,24 @@ std::shared_ptr<InjectionDistribution> ModifiedMoyalPlusExponentialEnergyDistrib
     return std::shared_ptr<InjectionDistribution>(new ModifiedMoyalPlusExponentialEnergyDistribution(*this));
 }
 
-bool ModifiedMoyalPlusExponentialEnergyDistribution::compare(WeightableDistribution const & other) const {
+bool ModifiedMoyalPlusExponentialEnergyDistribution::equal(WeightableDistribution const & other) const {
     const ModifiedMoyalPlusExponentialEnergyDistribution* x = dynamic_cast<const ModifiedMoyalPlusExponentialEnergyDistribution*>(&other);
 
     if(!x)
         return false;
     else
-        return energyMin == x->energyMin
-            and energyMax == x->energyMax
-            and mu == x->mu
-            and sigma == x->sigma
-            and A == x->sigma
-            and l == x->l
-            and B == x->B;
+        return
+            std::tie(energyMin, energyMax, mu, sigma, A, l, B)
+            ==
+            std::tie(x->energyMin, x->energyMax, x->mu, x->sigma, x->A, x->l, x->B);
+}
+
+bool ModifiedMoyalPlusExponentialEnergyDistribution::less(WeightableDistribution const & other) const {
+    const ModifiedMoyalPlusExponentialEnergyDistribution* x = dynamic_cast<const ModifiedMoyalPlusExponentialEnergyDistribution*>(&other);
+    return
+        std::tie(energyMin, energyMax, mu, sigma, A, l, B)
+        <
+        std::tie(x->energyMin, x->energyMax, x->mu, x->sigma, x->A, x->l, x->B);
 }
 
 //---------------
@@ -327,13 +378,17 @@ std::string IsotropicDirection::Name() const {
     return "IsotropicDirection";
 }
 
-bool IsotropicDirection::compare(WeightableDistribution const & other) const {
+bool IsotropicDirection::equal(WeightableDistribution const & other) const {
     const IsotropicDirection* x = dynamic_cast<const IsotropicDirection*>(&other);
 
     if(!x)
         return false;
     else
         return true;
+}
+
+bool IsotropicDirection::less(WeightableDistribution const & other) const {
+    return false;
 }
 
 //---------------
@@ -364,13 +419,31 @@ std::string FixedDirection::Name() const {
     return "FixedDirection";
 }
 
-bool FixedDirection::compare(WeightableDistribution const & other) const {
+bool FixedDirection::equal(WeightableDistribution const & other) const {
     const FixedDirection* x = dynamic_cast<const FixedDirection*>(&other);
 
     if(!x)
         return false;
     else
-        return abs(1.0 - earthmodel::scalar_product(dir, x->dir)) < 1e-9;
+        return (abs(1.0 - earthmodel::scalar_product(dir, x->dir)) < 1e-9);
+}
+
+bool FixedDirection::less(WeightableDistribution const & other) const {
+    const FixedDirection* x = dynamic_cast<const FixedDirection*>(&other);
+    if(abs(1.0 - earthmodel::scalar_product(dir, x->dir)) < 1e-9) {
+        return false;
+    } else {
+        double X = dir.GetX();
+        double Y = dir.GetY();
+        double Z = dir.GetZ();
+        double other_X = dir.GetX();
+        double other_Y = dir.GetY();
+        double other_Z = dir.GetZ();
+        return
+            std::tie(X, Y, Z)
+            <
+            std::tie(other_X, other_Y, other_Z);
+    }
 }
 
 //---------------
@@ -414,14 +487,23 @@ std::string Cone::Name() const {
     return "Cone";
 }
 
-bool Cone::compare(WeightableDistribution const & other) const {
+bool Cone::equal(WeightableDistribution const & other) const {
     const Cone* x = dynamic_cast<const Cone*>(&other);
 
     if(!x)
         return false;
     else
-        return abs(1.0 - earthmodel::scalar_product(dir, x->dir)) < 1e-9
-            and opening_angle == x->opening_angle;
+        return (abs(1.0 - earthmodel::scalar_product(dir, x->dir)) < 1e-9
+            and opening_angle == x->opening_angle);
+}
+
+bool Cone::less(WeightableDistribution const & other) const {
+    const Cone* x = dynamic_cast<const Cone*>(&other);
+    if(abs(1.0 - earthmodel::scalar_product(dir, x->dir)) < 1e-9) {
+        return false;
+    } else {
+        return opening_angle < x->opening_angle;
+    }
 }
 
 //---------------
@@ -491,13 +573,18 @@ std::pair<earthmodel::Vector3D, earthmodel::Vector3D> CylinderVolumePositionDist
     }
 }
 
-bool CylinderVolumePositionDistribution::compare(WeightableDistribution const & other) const {
+bool CylinderVolumePositionDistribution::equal(WeightableDistribution const & other) const {
     const CylinderVolumePositionDistribution* x = dynamic_cast<const CylinderVolumePositionDistribution*>(&other);
 
     if(!x)
         return false;
     else
-        return cylinder == x->cylinder;
+        return (cylinder == x->cylinder);
+}
+
+bool CylinderVolumePositionDistribution::less(WeightableDistribution const & other) const {
+    const CylinderVolumePositionDistribution* x = dynamic_cast<const CylinderVolumePositionDistribution*>(&other);
+    return cylinder < x->cylinder;
 }
 
 //---------------
@@ -510,7 +597,17 @@ double DepthFunction::operator()(InteractionSignature const & signature, double 
 }
 
 bool DepthFunction::operator==(DepthFunction const & distribution) const {
-    return this->compare(distribution);
+    if(this == &distribution)
+        return true;
+    else
+        return this->equal(distribution);
+}
+
+bool DepthFunction::operator<(DepthFunction const & distribution) const {
+    if(typeid(this) == typeid(&distribution))
+        return this->less(distribution);
+    else
+        return std::type_index(typeid(this)) < std::type_index(typeid(&distribution));
 }
 
 //---------------
@@ -523,7 +620,17 @@ double RangeFunction::operator()(InteractionSignature const & signature, double 
 }
 
 bool RangeFunction::operator==(RangeFunction const & distribution) const {
-    return this->compare(distribution);
+    if(this == &distribution)
+        return true;
+    else
+        return this->equal(distribution);
+}
+
+bool RangeFunction::operator<(RangeFunction const & distribution) const {
+    if(typeid(this) == typeid(&distribution))
+        return this->less(distribution);
+    else
+        return std::type_index(typeid(this)) < std::type_index(typeid(&distribution));
 }
 
 //---------------
@@ -567,21 +674,26 @@ double DecayRangeFunction::DecayWidth() const {
 
 DecayRangeFunction::DecayRangeFunction(double particle_mass, double decay_width, double multiplier) : particle_mass(particle_mass), decay_width(decay_width), multiplier(multiplier) {}
 
-bool DecayRangeFunction::operator==(RangeFunction const & distribution) const {
-    return this->compare(distribution);
-}
-
-bool DecayRangeFunction::compare(RangeFunction const & other) const {
+bool DecayRangeFunction::equal(RangeFunction const & other) const {
     const DecayRangeFunction* x = dynamic_cast<const DecayRangeFunction*>(&other);
 
     if(!x)
         return false;
     else
-        return particle_mass == x->particle_mass
-            and decay_width == x->decay_width
-            and multiplier == x->multiplier;
+        return
+            std::tie(particle_mass, decay_width, multiplier)
+            ==
+            std::tie(x->particle_mass, x->decay_width, x->multiplier);
 }
 
+bool DecayRangeFunction::less(RangeFunction const & other) const {
+    const DecayRangeFunction* x = dynamic_cast<const DecayRangeFunction*>(&other);
+
+    return
+        std::tie(particle_mass, decay_width, multiplier)
+        <
+        std::tie(x->particle_mass, x->decay_width, x->multiplier);
+}
 
 //---------------
 // class ColumnDepthPositionDistribution : VertexPositionDistribution
@@ -605,13 +717,30 @@ earthmodel::Vector3D ColumnDepthPositionDistribution::SamplePosition(std::shared
     earthmodel::Vector3D endcap_1 = pca + endcap_length * dir;
 
     earthmodel::Path path(earth_model, earth_model->GetEarthCoordPosFromDetCoordPos(endcap_0), earth_model->GetEarthCoordDirFromDetCoordDir(dir), endcap_length*2);
-    path.ExtendFromStartByColumnDepth(lepton_depth, target_types);
+    path.ExtendFromStartByColumnDepth(lepton_depth);
     path.ClipToOuterBounds();
 
-    double totalColumnDepth = path.GetColumnDepthInBounds(target_types);
+    std::set<Particle::ParticleType> const & possible_targets = cross_sections.TargetTypes();
 
-    double traversedColumnDepth = totalColumnDepth * rand->Uniform();
-    double dist = path.GetDistanceFromStartAlongPath(traversedColumnDepth);
+    std::vector<LeptonInjector::Particle::ParticleType> targets(possible_targets.begin(), possible_targets.end());
+    std::vector<double> total_cross_sections(targets.size(), 0.0);
+    InteractionRecord fake_record = record;
+    for(unsigned int i=0; i<targets.size(); ++i) {
+        LeptonInjector::Particle::ParticleType const & target = targets[i];
+        fake_record.signature.target_type = target;
+        fake_record.target_mass = earth_model->GetTargetMass(target);
+        fake_record.target_momentum = {fake_record.target_mass,0,0,0};
+        for(auto const & cross_section : cross_sections.GetCrossSectionsForTarget(target)) {
+            total_cross_sections[i] += cross_section->TotalCrossSection(fake_record);
+        }
+    }
+    double totalInteractionDepth = path.GetInteractionDepthInBounds(targets, total_cross_sections);
+    double expTotalInteractionDepth = exp(totalInteractionDepth);
+
+    double y = rand->Uniform();
+    double traversedInteractionDepth = totalInteractionDepth - log(y + totalInteractionDepth * (1-y));
+
+    double dist = path.GetDistanceFromStartAlongPath(traversedInteractionDepth, targets, total_cross_sections);
     earthmodel::Vector3D vertex = earth_model->GetDetCoordPosFromEarthCoordPos(path.GetFirstPoint() + dist * path.GetDirection());
 
     return vertex;
@@ -632,16 +761,35 @@ double ColumnDepthPositionDistribution::GenerationProbability(std::shared_ptr<ea
     earthmodel::Vector3D endcap_1 = pca + endcap_length * dir;
 
     earthmodel::Path path(earth_model, earth_model->GetEarthCoordPosFromDetCoordPos(endcap_0), earth_model->GetEarthCoordDirFromDetCoordDir(dir), endcap_length*2);
-    path.ExtendFromStartByColumnDepth(lepton_depth, target_types);
+    path.ExtendFromStartByColumnDepth(lepton_depth);
     path.ClipToOuterBounds();
 
     if(not path.IsWithinBounds(vertex))
         return 0.0;
 
-    double totalColumnDepth = path.GetColumnDepthInBounds(target_types); // g/cm^2
-    double density = earth_model->GetMassDensity(vertex, target_types); // g/cm^3
-    double prob_density = density / totalColumnDepth * 100; // (cm^-1 * cm/m) -> m^-1
+    std::set<Particle::ParticleType> const & possible_targets = cross_sections.TargetTypes();
+
+    std::vector<LeptonInjector::Particle::ParticleType> targets(possible_targets.begin(), possible_targets.end());
+    std::vector<double> total_cross_sections(targets.size(), 0.0);
+    InteractionRecord fake_record = record;
+    for(unsigned int i=0; i<targets.size(); ++i) {
+        LeptonInjector::Particle::ParticleType const & target = targets[i];
+        fake_record.signature.target_type = target;
+        fake_record.target_mass = earth_model->GetTargetMass(target);
+        fake_record.target_momentum = {fake_record.target_mass,0,0,0};
+        for(auto const & cross_section : cross_sections.GetCrossSectionsForTarget(target)) {
+            total_cross_sections[i] += cross_section->TotalCrossSection(fake_record);
+        }
+    }
+    double totalInteractionDepth = path.GetInteractionDepthInBounds(targets, total_cross_sections);
+
+    path.SetPoints(path.GetFirstPoint(), vertex);
+
+    double traversedInteractionDepth = path.GetInteractionDepthInBounds(targets, total_cross_sections);
+
+    double prob_density = exp(-traversedInteractionDepth) / one_minus_exp_of_negative(totalInteractionDepth);
     prob_density /= (M_PI * radius * radius); // (m^-1 * m^-2) -> m^-3
+
     return prob_density;
 }
 
@@ -670,26 +818,38 @@ std::pair<earthmodel::Vector3D, earthmodel::Vector3D> ColumnDepthPositionDistrib
     earthmodel::Vector3D endcap_1 = pca + endcap_length * dir;
 
     earthmodel::Path path(earth_model, earth_model->GetEarthCoordPosFromDetCoordPos(endcap_0), earth_model->GetEarthCoordDirFromDetCoordDir(dir), endcap_length*2);
-    path.ExtendFromStartByColumnDepth(lepton_depth, target_types);
+    path.ExtendFromStartByColumnDepth(lepton_depth);
     path.ClipToOuterBounds();
     return std::pair<earthmodel::Vector3D, earthmodel::Vector3D>(path.GetFirstPoint(), path.GetLastPoint());
 }
 
-bool ColumnDepthPositionDistribution::compare(WeightableDistribution const & other) const {
+bool ColumnDepthPositionDistribution::equal(WeightableDistribution const & other) const {
     const ColumnDepthPositionDistribution* x = dynamic_cast<const ColumnDepthPositionDistribution*>(&other);
 
     if(!x)
         return false;
     else
-        return radius == x->radius
+        return (radius == x->radius
             and endcap_length == x->endcap_length
             and (
                     (depth_function and x->depth_function and *depth_function == *x->depth_function)
                     or (!depth_function and !x->depth_function)
                 )
-            and target_types == x->target_types;
+            and target_types == x->target_types);
 }
 
+bool ColumnDepthPositionDistribution::less(WeightableDistribution const & other) const {
+    const ColumnDepthPositionDistribution* x = dynamic_cast<const ColumnDepthPositionDistribution*>(&other);
+    bool depth_less =
+        (!depth_function and x->depth_function) // this->NULL and other->(not NULL)
+        or (depth_function and x->depth_function // both not NULL
+                and *depth_function < *x->depth_function); // Less than
+    bool f = false;
+    return
+        std::tie(radius, endcap_length, f, target_types)
+        <
+        std::tie(radius, x->endcap_length, depth_less, x->target_types);
+}
 
 //---------------
 // class RangePositionDistribution : public VertexPositionDistribution {
@@ -716,10 +876,27 @@ earthmodel::Vector3D RangePositionDistribution::SamplePosition(std::shared_ptr<L
     path.ExtendFromStartByDistance(lepton_range);
     path.ClipToOuterBounds();
 
-    double totalColumnDepth = path.GetColumnDepthInBounds(target_types);
+    std::set<Particle::ParticleType> const & possible_targets = cross_sections.TargetTypes();
 
-    double traversedColumnDepth = totalColumnDepth * rand->Uniform();
-    double dist = path.GetDistanceFromStartAlongPath(traversedColumnDepth, target_types);
+    std::vector<LeptonInjector::Particle::ParticleType> targets(possible_targets.begin(), possible_targets.end());
+    std::vector<double> total_cross_sections(targets.size(), 0.0);
+    InteractionRecord fake_record = record;
+    for(unsigned int i=0; i<targets.size(); ++i) {
+        LeptonInjector::Particle::ParticleType const & target = targets[i];
+        fake_record.signature.target_type = target;
+        fake_record.target_mass = earth_model->GetTargetMass(target);
+        fake_record.target_momentum = {fake_record.target_mass,0,0,0};
+        for(auto const & cross_section : cross_sections.GetCrossSectionsForTarget(target)) {
+            total_cross_sections[i] += cross_section->TotalCrossSection(fake_record);
+        }
+    }
+    double totalInteractionDepth = path.GetInteractionDepthInBounds(targets, total_cross_sections);
+    double expTotalInteractionDepth = exp(totalInteractionDepth);
+
+    double y = rand->Uniform();
+    double traversedInteractionDepth = totalInteractionDepth - log(y + totalInteractionDepth * (1-y));
+
+    double dist = path.GetDistanceFromStartAlongPath(traversedInteractionDepth, targets, total_cross_sections);
     earthmodel::Vector3D vertex = earth_model->GetDetCoordPosFromEarthCoordPos(path.GetFirstPoint() + dist * path.GetDirection());
 
     return vertex;
@@ -746,10 +923,29 @@ double RangePositionDistribution::GenerationProbability(std::shared_ptr<earthmod
     if(not path.IsWithinBounds(vertex))
         return 0.0;
 
-    double totalColumnDepth = path.GetColumnDepthInBounds(target_types); // g/cm^2
-    double density = earth_model->GetMassDensity(vertex, target_types); // g/cm^3
-    double prob_density = density / totalColumnDepth * 100; // (cm^-1 * cm/m) -> m^-1
+    std::set<Particle::ParticleType> const & possible_targets = cross_sections.TargetTypes();
+
+    std::vector<LeptonInjector::Particle::ParticleType> targets(possible_targets.begin(), possible_targets.end());
+    std::vector<double> total_cross_sections(targets.size(), 0.0);
+    InteractionRecord fake_record = record;
+    for(unsigned int i=0; i<targets.size(); ++i) {
+        LeptonInjector::Particle::Particle const & target = targets[i];
+        fake_record.target_type = target;
+        fake_record.target_mass = earth_model->GetTargetMass(target);
+        fake_record.target_momentum = {fake_record.target_mass,0,0,0};
+        for(auto const & cross_section : cross_sections.GetCrossSectionsForTarget(target)) {
+            total_cross_sections[i] += cross_section.TotalCrossSection(fake_record);
+        }
+    }
+    double totalInteractionDepth = path.GetInteractionDepthInBounds(targets, total_cross_sections);
+
+    path.SetPoints(path.GetFirstPoint(), vertex);
+
+    double traversedInteractionDepth = path.GetInteractionDepthInBounds(targets, total_cross_sections);
+
+    double prob_density = exp(-traversedInteractionDepth) / one_minus_exp_of_negative(totalInteractionDepth);
     prob_density /= (M_PI * radius * radius); // (m^-1 * m^-2) -> m^-3
+
     return prob_density;
 }
 
@@ -788,19 +984,32 @@ std::pair<earthmodel::Vector3D, earthmodel::Vector3D> RangePositionDistribution:
     return std::pair<earthmodel::Vector3D, earthmodel::Vector3D>(path.GetFirstPoint(), path.GetLastPoint());
 }
 
-bool RangePositionDistribution::compare(WeightableDistribution const & other) const {
+bool RangePositionDistribution::equal(WeightableDistribution const & other) const {
     const RangePositionDistribution* x = dynamic_cast<const RangePositionDistribution*>(&other);
 
     if(!x)
         return false;
     else
-        return radius == x->radius
+        return (radius == x->radius
             and endcap_length == x->endcap_length
             and (
                     (range_function and x->range_function and *range_function == *x->range_function)
                     or (!range_function and !x->range_function)
                 )
-            and target_types == x->target_types;
+            and target_types == x->target_types);
+}
+
+bool RangePositionDistribution::less(WeightableDistribution const & other) const {
+    const RangePositionDistribution* x = dynamic_cast<const RangePositionDistribution*>(&other);
+    bool range_less =
+        (!range_function and x->range_function) // this->NULL and other->(not NULL)
+        or (range_function and x->range_function // both not NULL
+                and *range_function < *x->range_function); // Less than
+    bool f = false;
+    return
+        std::tie(radius, endcap_length, f, target_types)
+        <
+        std::tie(radius, x->endcap_length, range_less, x->target_types);
 }
 
 //---------------
@@ -902,19 +1111,32 @@ std::pair<earthmodel::Vector3D, earthmodel::Vector3D> DecayRangePositionDistribu
     return std::pair<earthmodel::Vector3D, earthmodel::Vector3D>(path.GetFirstPoint(), path.GetLastPoint());
 }
 
-bool DecayRangePositionDistribution::compare(WeightableDistribution const & other) const {
+bool DecayRangePositionDistribution::equal(WeightableDistribution const & other) const {
     const DecayRangePositionDistribution* x = dynamic_cast<const DecayRangePositionDistribution*>(&other);
 
     if(!x)
         return false;
     else
-        return radius == x->radius
+        return (radius == x->radius
             and endcap_length == x->endcap_length
             and (
                     (range_function and x->range_function and *range_function == *x->range_function)
                     or (!range_function and !x->range_function)
                 )
-            and target_types == x->target_types;
+            and target_types == x->target_types);
+}
+
+bool DecayRangePositionDistribution::less(WeightableDistribution const & other) const {
+    const DecayRangePositionDistribution* x = dynamic_cast<const DecayRangePositionDistribution*>(&other);
+    bool range_less =
+        (!range_function and x->range_function) // this->NULL and other->(not NULL)
+        or (range_function and x->range_function // both not NULL
+                and *range_function < *x->range_function); // Less than
+    bool f = false;
+    return
+        std::tie(radius, endcap_length, f, target_types)
+        <
+        std::tie(radius, x->endcap_length, range_less, x->target_types);
 }
 
 //---------------
@@ -968,13 +1190,18 @@ std::shared_ptr<InjectionDistribution> PrimaryNeutrinoHelicityDistribution::clon
     return std::shared_ptr<PrimaryNeutrinoHelicityDistribution>(new PrimaryNeutrinoHelicityDistribution(*this));
 }
 
-bool PrimaryNeutrinoHelicityDistribution::compare(WeightableDistribution const & other) const {
+bool PrimaryNeutrinoHelicityDistribution::equal(WeightableDistribution const & other) const {
     const PrimaryNeutrinoHelicityDistribution* x = dynamic_cast<const PrimaryNeutrinoHelicityDistribution*>(&other);
 
     if(!x)
         return false;
     else
         return true;
+}
+
+bool PrimaryNeutrinoHelicityDistribution::less(WeightableDistribution const & other) const {
+    const PrimaryNeutrinoHelicityDistribution* x = dynamic_cast<const PrimaryNeutrinoHelicityDistribution*>(&other);
+    return false;
 }
 
 } // namespace LeptonInjector

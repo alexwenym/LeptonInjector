@@ -1,3 +1,4 @@
+#pragma once
 #ifndef LI_Quaternion_H
 #define LI_Quaternion_H
 
@@ -71,6 +72,7 @@ public:
 
     bool operator==(const Quaternion& quaternion) const;
     bool operator!=(const Quaternion& quaternion) const;
+    bool operator<(const Quaternion& quaternion) const;
     void swap(Quaternion& quaternion);
     friend std::ostream& operator<<(std::ostream& os, Quaternion const& quaternion);
 

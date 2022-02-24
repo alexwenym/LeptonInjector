@@ -1,3 +1,4 @@
+#pragma once
 #ifndef LI_Placement_H
 #define LI_Placement_H
 
@@ -32,6 +33,7 @@ public:
     Placement& operator=(Placement && placement);
     bool operator==(const Placement& placement) const;
     bool operator!=(const Placement& placement) const;
+    bool operator<(const Placement& placement) const;
     void swap(Placement& placement);
     friend std::ostream& operator<<(std::ostream& os, Placement const& placement);
 
