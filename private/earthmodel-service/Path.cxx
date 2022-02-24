@@ -88,7 +88,6 @@ void Path::SetPoints(Vector3D first_point, Vector3D last_point) {
     direction_.normalize();
     set_points_ = true;
     set_intersections_ = false;
-    column_depth_cache_.clear();
     set_column_depth_ = false;
 }
 
@@ -102,7 +101,6 @@ void Path::SetPointsWithRay(Vector3D first_point, Vector3D direction, double dis
     last_point_ = first_point + direction * distance;
     set_points_ = true;
     set_intersections_ = false;
-    column_depth_cache_.clear();
     set_column_depth_ = false;
 }
 
@@ -157,7 +155,6 @@ void Path::ClipToOuterBounds() {
         }
         if(clip) {
             distance_ = (last_point_ - first_point_).magnitude();
-            column_depth_cache_.clear();
             set_column_depth_ = false;
         }
     } else {
@@ -182,7 +179,6 @@ void Path::ExtendFromEndByDistance(double distance) {
         distance_ = 0;
         last_point_ = first_point_;
     }
-    column_depth_cache_.clear();
     set_column_depth_ = false;
 }
 
@@ -193,7 +189,6 @@ void Path::ExtendFromStartByDistance(double distance) {
         distance_ = 0;
         first_point_ = last_point_;
     }
-    column_depth_cache_.clear();
     set_column_depth_ = false;
 }
 
@@ -334,7 +329,7 @@ void Path::ExtendFromEndToInteractionDepth(double interaction_depth,
         std::vector<double> const & total_cross_sections) {
     double shift = interaction_depth - GetInteractionDepthInBounds(targets, total_cross_sections);
     if(shift > 0) {
-        ExtendFromEndByInteractionDepth(shift);
+        ExtendFromEndByInteractionDepth(shift, targets, total_cross_sections);
     }
 }
 
@@ -343,7 +338,7 @@ void Path::ExtendFromStartToInteractionDepth(double interaction_depth,
         std::vector<double> const & total_cross_sections) {
     double shift = interaction_depth - GetInteractionDepthInBounds(targets, total_cross_sections);
     if(shift > 0) {
-        ExtendFromStartByInteractionDepth(shift);
+        ExtendFromStartByInteractionDepth(shift, targets, total_cross_sections);
     }
 }
 
@@ -352,7 +347,7 @@ void Path::ShrinkFromEndToInteractionDepth(double interaction_depth,
         std::vector<double> const & total_cross_sections) {
     double shift = GetInteractionDepthInBounds(targets, total_cross_sections) - interaction_depth;
     if(shift > 0) {
-        ShrinkFromEndByInteractionDepth(shift);
+        ShrinkFromEndByInteractionDepth(shift, targets, total_cross_sections);
     }
 }
 
@@ -361,7 +356,7 @@ void Path::ShrinkFromStartToInteractionDepth(double interaction_depth,
         std::vector<double> const & total_cross_sections) {
     double shift = GetInteractionDepthInBounds(targets, total_cross_sections) - interaction_depth;
     if(shift > 0) {
-        ShrinkFromStartByInteractionDepth(shift);
+        ShrinkFromStartByInteractionDepth(shift, targets, total_cross_sections);
     }
 }
 
@@ -371,11 +366,11 @@ void Path::ShrinkFromStartToInteractionDepth(double interaction_depth,
 ////
 double Path::GetColumnDepthInBounds() {
     EnsureIntersections();
-    if(HasTargetColumnDepth()) {
+    if(HasColumnDepth()) {
         return column_depth_cached_;
     } else {
         double column_depth = earth_model_->GetColumnDepthInCGS(intersections_, first_point_, last_point_);
-        column_depth_cache_ = column_depth;
+        column_depth_cached_ = column_depth;
         return column_depth;
     }
 }
@@ -496,7 +491,7 @@ double Path::GetInteractionDepthFromEndInReverse(double distance,
 ////
 // Get Distance From (ColumnDepth)
 ///
-/double Path::GetDistanceFromStartInBounds(double column_depth) {
+double Path::GetDistanceFromStartInBounds(double column_depth) {
     EnsureIntersections();
     double distance = earth_model_->DistanceForColumnDepthFromPoint(intersections_, first_point_, direction_, column_depth);
     if(distance > distance_) {
@@ -550,7 +545,7 @@ double Path::GetDistanceFromStartInBounds(double interaction_depth,
             std::vector<LeptonInjector::Particle::ParticleType> const & targets,
             std::vector<double> const & total_cross_sections) {
     EnsureIntersections();
-    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, first_point_, direction_, interaction_depth, targets);
+    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, first_point_, direction_, interaction_depth, targets, total_cross_sections);
     if(distance > distance_) {
         distance = distance_;
     } else if(interaction_depth <= 0) {
@@ -563,7 +558,7 @@ double Path::GetDistanceFromEndInBounds(double interaction_depth,
             std::vector<LeptonInjector::Particle::ParticleType> const & targets,
             std::vector<double> const & total_cross_sections) {
     EnsureIntersections();
-    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, last_point_, -direction_, interaction_depth, targets);
+    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, last_point_, -direction_, interaction_depth, targets, total_cross_sections);
     if(distance > distance_) {
         distance = distance_;
     } else if(interaction_depth <= 0) {
@@ -576,7 +571,7 @@ double Path::GetDistanceFromStartAlongPath(double interaction_depth,
             std::vector<LeptonInjector::Particle::ParticleType> const & targets,
             std::vector<double> const & total_cross_sections) {
     EnsureIntersections();
-    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, first_point_, direction_, interaction_depth, targets);
+    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, first_point_, direction_, interaction_depth, targets, total_cross_sections);
     return distance;
 }
 
@@ -584,7 +579,7 @@ double Path::GetDistanceFromEndAlongPath(double interaction_depth,
             std::vector<LeptonInjector::Particle::ParticleType> const & targets,
             std::vector<double> const & total_cross_sections) {
     EnsureIntersections();
-    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, last_point_, direction_, interaction_depth, targets);
+    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, last_point_, direction_, interaction_depth, targets, total_cross_sections);
     return distance;
 }
 
@@ -592,7 +587,7 @@ double Path::GetDistanceFromStartInReverse(double interaction_depth,
             std::vector<LeptonInjector::Particle::ParticleType> const & targets,
             std::vector<double> const & total_cross_sections) {
     EnsureIntersections();
-    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, first_point_, -direction_, interaction_depth, targets);
+    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, first_point_, -direction_, interaction_depth, targets, total_cross_sections);
     return distance;
 }
 
@@ -600,7 +595,7 @@ double Path::GetDistanceFromEndInReverse(double interaction_depth,
             std::vector<LeptonInjector::Particle::ParticleType> const & targets,
             std::vector<double> const & total_cross_sections) {
     EnsureIntersections();
-    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, last_point_, -direction_, interaction_depth, targets);
+    double distance = earth_model_->DistanceForInteractionDepthFromPoint(intersections_, last_point_, -direction_, interaction_depth, targets, total_cross_sections);
     return distance;
 }
 

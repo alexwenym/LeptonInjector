@@ -168,7 +168,7 @@ void CrossSectionCollection::InitializeTargetTypes() {
     // std::copy(target_set.begin(), target_set.end(), target_types.begin());
 }
 
-std::vector<std::shared_ptr<CrossSection>> CrossSectionCollection::empty = {};
+const std::vector<std::shared_ptr<CrossSection>> CrossSectionCollection::empty = {};
 
 CrossSectionCollection::CrossSectionCollection() {}
 
@@ -177,7 +177,7 @@ CrossSectionCollection::CrossSectionCollection(Particle::ParticleType primary_ty
 }
 
 std::vector<std::shared_ptr<CrossSection>> const & CrossSectionCollection::GetCrossSectionsForTarget(Particle::ParticleType p) const {
-    td::map<Particle::ParticleType, std::vector<std::shared_ptr<CrossSection>>>::const_iterator it = cross_sections_by_target.find(p);
+    std::map<Particle::ParticleType, std::vector<std::shared_ptr<CrossSection>>>::const_iterator it = cross_sections_by_target.find(p);
     if(it != cross_sections_by_target.end()) {
         return it->second;
     } else {

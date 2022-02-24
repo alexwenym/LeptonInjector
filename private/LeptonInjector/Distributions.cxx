@@ -929,12 +929,12 @@ double RangePositionDistribution::GenerationProbability(std::shared_ptr<earthmod
     std::vector<double> total_cross_sections(targets.size(), 0.0);
     InteractionRecord fake_record = record;
     for(unsigned int i=0; i<targets.size(); ++i) {
-        LeptonInjector::Particle::Particle const & target = targets[i];
-        fake_record.target_type = target;
+        LeptonInjector::Particle::ParticleType const & target = targets[i];
+        fake_record.signature.target_type = target;
         fake_record.target_mass = earth_model->GetTargetMass(target);
         fake_record.target_momentum = {fake_record.target_mass,0,0,0};
         for(auto const & cross_section : cross_sections.GetCrossSectionsForTarget(target)) {
-            total_cross_sections[i] += cross_section.TotalCrossSection(fake_record);
+            total_cross_sections[i] += cross_section->TotalCrossSection(fake_record);
         }
     }
     double totalInteractionDepth = path.GetInteractionDepthInBounds(targets, total_cross_sections);
