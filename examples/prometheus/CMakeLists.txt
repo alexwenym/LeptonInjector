@@ -1,0 +1,3 @@
+
+add_executable(inject_leptons inject_leptons.cpp)
+target_link_libraries(inject_leptons lepton_injector)

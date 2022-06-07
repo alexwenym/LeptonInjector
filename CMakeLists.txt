@@ -246,6 +246,7 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/vendor/cereal" "extern/cereal")
 include_directories("${PROJECT_SOURCE_DIR}/vendor/cereal/include")
 
 add_subdirectory(tests)
+add_subdirectory(examples)
 
 MESSAGE("")
 MESSAGE("Done!")
