@@ -17,6 +17,20 @@
 #include "argagg.hpp"
 #include "date.h"
 
+enum class InjectionMode {
+    Ranged,
+    Volume
+};
+
+enum class InteractionType {
+    CC,
+    NC,
+    GR_E,
+    GR_MU,
+    GR_TAU,
+    GR_HAD
+}
+
 template <class Precision>
 std::string getISOCurrentTimestamp() {
     auto now = std::chrono::system_clock::now();
@@ -684,29 +698,230 @@ void warn_user_cross_sections(argagg::parser_result & args, std::map<std::string
     }
 }
 
-std::vector<std::tuple<bool, LeptonInjector::Particle::ParticleType, std::string, int>> get_injectors(argagg::parser_result & args) {
-    std::vector<std::tuple<bool, LeptonInjector::Particle::ParticleType, std::string, int>> injectors;
-    if(args["nue"]) {
-        if(args["cc"] and args["nc"]) {
-            injectors.push_back({false, LeptonInjector::Particle::ParticleType::NuE, "cc_nc", int(args["n_events"].as<float>())});
+std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::vector<InteractionType>, int>> get_injectors(argagg::parser_result & args) {
+    bool ranged = bool(args["ranged_mode"]);
+    bool volume = bool(args["volume_mode"]);
+    bool ranged_and_volume = bool(args["ranged_and_volume_mode"]);
+    bool automatic = bool(args["automatic_injection_mode"]);
+
+    int n_true = int(ranged) + int(volume) + int(ranged_and_volume) + int(automatic);
+    if(n_true == 0) {
+        std::cerr << "WARNING! Defaulting to automatic injection mode selection!" << std::endl;
+        automatic = true;
+    } else if(n_true > 1) {
+        std::cerr << "Fatal Error: More than one inejction mode option specified. You must choose a single injection mode option." << std:endl;
+        throw std::runtime_error("Fatal Error: More than one inejction mode option specified. You must choose a single injection mode option.");
+    }
+
+    std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::string, int>> injectors;
+    if(automatic) {
+        if(args["nue"]) {
+            if(args["cc"] and args["nc"]) {
+                std::cout << "Injecting NuE CC+NC simultaneously in Volume mode." << std::endl;
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuE, {InteractionType::CC, InteractionType::NC}, int(args["n_events"].as<float>())});
+            }
+            else if(args["cc"]) {
+                std::cout << "Injecting NuE CC in Volume mode." << std::endl;
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuE, {InteractionType::CC}, int(args["n_events"].as<float>())});
+            }
+            else if(args["nc"]) {
+                std::cout << "Injecting NuE NC in Volume mode." << std::endl;
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuE, {InteractionType::NC}, int(args["n_events"].as<float>())});
+            }
         }
-        else if(args["cc"]) {
-            injectors.push_back({false, LeptonInjector::Particle::ParticleType::NuE, "cc", int(args["n_events"].as<float>())});
+        if(args["numu"]) {
+            if(args["cc"] and args["nc"]) {
+                int total_events = int(args["n_events"].as<float>());
+                int ranged_events = total_events / 2;
+                int volume_events = total_events - ranged_events;
+                std::cout << "Injecting half of NuMu events with CC in Ranged mode, and half of NuMu events with CC+NC in Volume mode."
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC}, ranged_events});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC, InteractionType::NC}, volume_events});
+            }
+            else if(args["cc"]) {
+                int total_events = int(args["n_events"].as<float>());
+                int ranged_events = total_events / 2;
+                int volume_events = total_events - ranged_events;
+                std::cout << "Injecting half of NuMu events with CC in Ranged mode, and half of NuMu events with CC in Volume mode."
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC}, ranged_events});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC}, volume_events});
+            }
+            else if(args["nc"]) {
+                std::cout << "Injecting NuMu NC in Volume mode."
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::NC}, int(args["n_events"].as<float>())});
+            }
         }
-        else if(args["nc"]) {
-            injectors.push_back({false, LeptonInjector::Particle::ParticleType::NuE, "nc", int(args["n_events"].as<float>())});
+        if(args["nutau"]) {
+            if(args["cc"] and args["nc"]) {
+                int total_events = int(args["n_events"].as<float>());
+                int ranged_events = total_events / 2;
+                int volume_events = total_events - ranged_events;
+                std::cout << "Injecting half of NuTau events with CC in Ranged mode, and half of NuTau events with CC+NC in Volume mode."
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC}, ranged_events});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC, InteractionType::NC}, volume_events});
+            }
+            else if(args["cc"]) {
+                int total_events = int(args["n_events"].as<float>());
+                int ranged_events = total_events / 2;
+                int volume_events = total_events - ranged_events;
+                std::cout << "Injecting half of NuTau events with CC in Ranged mode, and half of NuTau events with CC in Volume mode."
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC}, ranged_events});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC}, volume_events});
+            }
+            else if(args["nc"]) {
+                std::cout << "Injecting NuTau NC in Volume mode."
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::NC}, int(args["n_events"].as<float>())});
+            }
+        }
+
+        if(args["nuebar"]) {
+
+            // gr or gr_mu or gr_tau --> ranged
+
+            std::vector<std::string> nue_interactions = {"cc", "nc", "gr_e", "gr_mu", "gr_tau", "gr_had"};
+            std::vector<InteractionType> nue_interaction_types = {InteractionType::CC, InteractionType::NC, InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD};
+            std::map<InteractionType, std::string> interaction_type_strings;
+            std::vector<InteractionType> gr_interactions = {InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD};
+            std::vector<InteractionType> ranged_interactions = {InteractionType::GR_MU, InteractionType::GR_TAU};
+
+            std::map<InteractionType, bool> enabled_interactions;
+            std::vector<InteractionType> enabled_interaction_types;
+            std::vector<InteractionType> enabled_ranged_types;
+            for(unsigned int i=0; i<nue_interactions.size(); ++i) {
+                std::string const & s = nue_interactions[i];
+                InteractionType const & t = nue_interaction_types[i];
+                interaction_type_strings.emplace(t, s);
+                enabled_interactions[s] = bool(args[s]);
+                if(args[s]) {
+                    enabled_interaction_types.push_back(t);
+                    if(std::find(ranged_interactions.begin(), ranged_interactions.end(), t) != ranged_interactions.end()) {
+                        enabled_ranged_types.push_back(t);
+                    }
+                }
+            }
+
+            bool gr = bool(args["gr"]);
+
+            if(gr) {
+                for(auto const & t : gr_interactions) {
+                    enabled_interactions[t] = true;
+                }
+            }
+
+            bool need_ranged = false;
+            for(auto const & t : ranged_interactions) {
+                need_ranged |= enabled_interactions[t];
+            }
+
+            std::stringstream ss;
+            for(unsigned int i=0; i<enabled_interaction_types.size()-1; ++i) {
+                std::string str = interaction_type_strings[enabled_interaction_types[i]];
+                std::transform(str.begin(), str.end(),str.begin(), [](auto c) { return std::toupper(c);});
+                ss << str << "+";
+            }
+            std::string str = interaction_type_strings[enabled_interaction_types[enabled_interaction_types.size()-1]];
+            std::transform(str.begin(), str.end(),str.begin(), [](auto c) { return std::toupper(c);});
+            ss << str;
+            if(enabled_interaction_types.size() > 1) {
+                ss << " simultaneously";
+            }
+
+            if(need_ranged) {
+                std::stringstream ss_ranged;
+                for(unsigned int i=0; i<enabled_ranged_types.size()-1; ++i) {
+                    std::string str = interaction_type_strings[enabled_ranged_types[i]];
+                    std::transform(str.begin(), str.end(),str.begin(), [](auto c) { return std::toupper(c);});
+                    ss_ranged << str << "+";
+                }
+                str = interaction_type_strings[enabled_interaction_types[enabled_ranged_types.size()-1]];
+                std::transform(str.begin(), str.end(),str.begin(), [](auto c) { return std::toupper(c);});
+                ss_ranged << str;
+                if(enabled_ranged_types.size() > 1) {
+                    ss_ranged << " simultaneously";
+                }
+                std::cout << "Injecting NuEBar " + ss.str() + " in Volume mode, and NuEBar " + ss_ranged.str() + " in Ranged mode." << std::endl;
+
+                int n_events = int(args["n_events"].as<float>());
+                int n_ranged = int(0.107 * enabled_ranged_types.size() * n_events);
+                int n_volume = n_events - n_ranged;
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuEBar, enabled_interactions, n_ranged});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuEBar, enabled_interactions, n_volume});
+            } else {
+                std::cout << "Injecting NuEBar " + " in Volume mode." << std::endl;
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuEBar, enabled_interactions, int(args["n_events"].as<float>())});
+            }
+        }
+        if(args["numubar"]) {
+            if(args["cc"] and args["nc"]) {
+                int total_events = int(args["n_events"].as<float>());
+                int ranged_events = total_events / 2;
+                int volume_events = total_events - ranged_events;
+                std::cout << "Injecting half of NuMuBar events with CC in Ranged mode, and half of NuMuBar events with CC+NC in Volume mode."
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC}, ranged_events});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC, InteractionType::NC}, volume_events});
+            }
+            else if(args["cc"]) {
+                int total_events = int(args["n_events"].as<float>());
+                int ranged_events = total_events / 2;
+                int volume_events = total_events - ranged_events;
+                std::cout << "Injecting half of NuMuBar events with CC in Ranged mode, and half of NuMuBar events with CC in Volume mode."
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC}, ranged_events});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC}, volume_events});
+            }
+            else if(args["nc"]) {
+                std::cout << "Injecting NuMuBar NC in Volume mode."
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::NC}, int(args["n_events"].as<float>())});
+            }
+        }
+        if(args["nutaubar"]) {
+            if(args["cc"] and args["nc"]) {
+                int total_events = int(args["n_events"].as<float>());
+                int ranged_events = total_events / 2;
+                int volume_events = total_events - ranged_events;
+                std::cout << "Injecting half of NuTauBar events with CC in Ranged mode, and half of NuTauBar events with CC+NC in Volume mode."
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC}, ranged_events});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC, InteractionType::NC}, volume_events});
+            }
+            else if(args["cc"]) {
+                int total_events = int(args["n_events"].as<float>());
+                int ranged_events = total_events / 2;
+                int volume_events = total_events - ranged_events;
+                std::cout << "Injecting half of NuTauBar events with CC in Ranged mode, and half of NuTauBar events with CC in Volume mode."
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC}, ranged_events});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC}, volume_events});
+            }
+            else if(args["nc"]) {
+                std::cout << "Injecting NuTauBar NC in Volume mode."
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::NC}, int(args["n_events"].as<float>())});
+            }
         }
     }
-    if(args["numu"]) {
-        if(args["cc"] and args["nc"]) {
-            injectors.push_back({false, LeptonInjector::Particle::ParticleType::NuE, "cc_nc", int(args["n_events"].as<float>())});
-            injectors.push_back({false, LeptonInjector::Particle::ParticleType::NuE, "cc_nc", int(args["n_events"].as<float>())});
+    else {
+        int total_events = int(args["n_events"].as<float>());
+        std::vector<int> events_to_inject;
+        std::vector<InjectionMode> modes;
+        std::map<InjectionMode, std::string> mode_to_str = {{InjectionMode::Ranged, "Ranged"}, {InjectionMode::Volume, "Volume"}};
+        if(ranged) {
+            modes.push_back(InjectionMode::Ranged);
+            events_to_inject.push_back(total_events);
+        } else if(volume) {
+            modes.push_back(InjectionMode::Volume);
+            events_to_inject.push_back(total_events);
+        } else if(ranged_and_volume) {
+            int n = total_events / 2;
+            events_to_inject.push_back(n);
+            events_to_inject.push_back(total_events - n);
+            modes.push_back(InjectionMode::Ranged);
+            modes.push_back(InjectionMode::Volume);
         }
-        else if(args["cc"]) {
-            injectors.push_back({false, LeptonInjector::Particle::ParticleType::NuE, "cc", int(args["n_events"].as<float>())});
-        }
-        else if(args["nc"]) {
-            injectors.push_back({false, LeptonInjector::Particle::ParticleType::NuE, "nc", int(args["n_events"].as<float>())});
+        std::vector<std::string> flavors = {"nue", "numu", "nutau", "nuebar", "numubar", "nutaubar"};
+        std::vector<std::string> nue_interactions = {"cc", "nc", "gr_e", "gr_mu", "gr_tau", "gr_had"};
+        std::vector<std::string> interactions = {"cc", "nc"};
+        std::vector<InteractionType> nue_interaction_types = {InteractionType::CC, InteractionType::NC, InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD};
+        std::vector<InteractionType> interaction_types;
+        for(auto const & mode : modes) {
+            for(unsigned int i=0; i<nue_interaction_types.size(); ++i) {
+            }
         }
     }
 }
