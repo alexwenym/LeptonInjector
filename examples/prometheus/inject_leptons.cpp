@@ -138,7 +138,7 @@ std::tuple<argagg::parser, argagg::parser_results> parse_arguments(int argc, cha
             "Path to the cross sections.", 1,
         },
         {
-            "earth_model_path", {"--li", "--li-path", "--lepton-injector-path"},
+            "earth_model_path", {"--earth-path", "--earth-model-path"},
             "Path to the earth model resources.", 1,
         },
         {
@@ -1057,15 +1057,22 @@ std::map<std::pair<std::string, std::string>, std::shared_ptr<LeptonInjector::Cr
     }
     return xs_ptrs_by_fname;
 }
-std::shared_ptr<earthmodel::EarthModel> get_earth_model(argagg::parser & args) {
+std::shared_ptr<earthmodel::EarthModel> get_earth_model(argagg::parser_results & args) {
     std::string path = get_path(args);
-    std::string earth_model = args["earth_model"].as<std::string>("PREM_mmc");
-    std::string materials_model = args["materials_model"].as<std::string>("Standard");
+    std::string earth_file = args["earth_model"].as<std::string>("PREM_mmc");
+    std::string materials_file = args["materials_model"].as<std::string>("Standard");
     std::shared_ptr<earthmodel::EarthModel> earth_model = std::make_shared<earthmodel::EarthModel>();
     earth_model->SetPath(path);
     earth_model->LoadMaterialModel(materials_file);
     earth_model->LoadEarthModel(earth_file);
     return earth_model;
+}
+
+void inject_events(std::shared_ptr<LeptonInjector::InjectorBase> injector) {// , std::shared_ptr<LeptonInjector::LeptonWeighter> weighter) {
+    while(*injector) {
+        LeptonInjector::InteractionRecord event = injector->GenerateEvent();
+        //double weight = weighter->SimplifiedEventWeight(event);
+    }
 }
 
 int main(int argc, char ** argv) {
@@ -1115,30 +1122,37 @@ try {
     }
 
     std::map<std::pair<std::string, std::string>, std::shared_ptr<LeptonInjector::CrossSection>> xs_ptrs_by_fname = get_xs_ptrs_by_fname(cross_sections);
+    std::vector<std::shared_ptr<LeptonInjector::CrossSection>> physical_xs_ptrs;
+    for(auto xs : xs_ptrs_by_fname) {
+        physical_xs_ptrs.push_back(xs.second);
+    }
 
     std::shared_ptr<earthmodel::EarthModel> earth_model = get_earth_model(args);
 
     // Pick energy distribution
-    std::shared_ptr<PrimaryEnergyDistribution> edist = std::make_shared<LeptonInjector::PowerLaw>(gamma, minE, maxE);
+    std::shared_ptr<LeptonInjector::PrimaryEnergyDistribution> edist = std::make_shared<LeptonInjector::PowerLaw>(gamma, minE, maxE);
 
     // Choose injection direction
-    std::shared_ptr<PrimaryDirectionDistribution> ddist = std::make_shared<LeptonInjector::Cone>(earthmodel::Vector3D{0.0, 0.0, 1.0}, minZenith, maxZenith, minAzimuth, maxAzimuth);
+    std::shared_ptr<LeptonInjector::PrimaryDirectionDistribution> ddist = std::make_shared<LeptonInjector::Cone>(earthmodel::Vector3D{0.0, 0.0, 1.0}, minZenith, maxZenith, minAzimuth, maxAzimuth);
 
     // Targets should be stationary
     std::shared_ptr<LeptonInjector::TargetMomentumDistribution> target_momentum_distribution = std::make_shared<LeptonInjector::TargetAtRest>();
 
     // Let us inject according to the decay distribution
-    std::shared_ptr<DepthFunction> depth_func = std::make_shared<LeptonInjector::LeptonDepthFunction>();
+    std::shared_ptr<LeptonInjector::DepthFunction> depth_func = std::make_shared<LeptonInjector::LeptonDepthFunction>();
 
     // Helicity distribution
-    std::shared_ptr<PrimaryNeutrinoHelicityDistribution> helicity_distribution = std::make_shared<LeptonInjector::PrimaryNeutrinoHelicityDistribution>();
+    std::shared_ptr<LeptonInjector::PrimaryNeutrinoHelicityDistribution> helicity_distribution = std::make_shared<LeptonInjector::PrimaryNeutrinoHelicityDistribution>();
+
+    // Random number service
+    std::shared_ptr<LeptonInjector::LI_random> random = std::make_shared<LeptonInjector::LI_random>();
 
     std::vector<std::shared_ptr<LeptonInjector::InjectorBase>> injector_pointers;
 
     for(unsigned inj_i=0; inj_i<injectors.size(); ++inj_i) {
         std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::vector<InteractionType>, int> injector_config = injectors[inj_i];
         InjectionMode injection_mode = std::get<0>(injector_config);
-        LeptonInjector::Particle::ParticleType particle_types = std::get<1>(injector_config);
+        LeptonInjector::Particle::ParticleType primary_type = std::get<1>(injector_config);
         std::vector<InteractionType> interaction_types = std::get<2>(injector_config);
         int n_events = std::get<3>(injector_config);
         std::vector<std::shared_ptr<LeptonInjector::CrossSection>> injector_cross_sections;
@@ -1152,47 +1166,36 @@ try {
             injector_cross_sections.push_back(xs.second);
         }
 
-        LeptonInjector::PrimaryInjector primary_injector(primary_type);
+        std::shared_ptr<LeptonInjector::PrimaryInjector> primary_injector = std::make_shared<LeptonInjector::PrimaryInjector>(primary_type);
 
         std::shared_ptr<LeptonInjector::InjectorBase> injector;
-        if(mode == InjectionMode::Ranged) {
+        if(injection_mode == InjectionMode::Ranged) {
             injector_pointers.push_back(std::make_shared<LeptonInjector::ColumnDepthLeptonInjector>(n_events, primary_injector, injector_cross_sections, earth_model, random, edist, ddist, target_momentum_distribution, depth_func, ranged_radius, ranged_length, helicity_distribution));
+        } else {
+            // Placement of cylinder in detector coordinates
+            earthmodel::Placement placement(earthmodel::Vector3D(0, 0, 0));
+            earthmodel::Cylinder injection_cylinder(placement, volume_radius, 0.0, volume_height);
+            injector_pointers.push_back(std::make_shared<LeptonInjector::VolumeLeptonInjector>(n_events, primary_injector, injector_cross_sections, earth_model, random, edist, ddist, target_momentum_distribution, injection_cylinder, helicity_distribution));
         }
     }
 
+    // Change the flux units from cm^-2 to m^-2
+    std::shared_ptr<LeptonInjector::WeightableDistribution> flux_units = std::make_shared<LeptonInjector::NormalizationConstant>(1e4);
 
-    std::cout << "Mat model: " << materials_model << std::endl;
-    try {
-        earthmodel::EarthModel earthModel;
-        earthModel.SetPath(path);
-        earthModel.LoadMaterialModel(materials_model);
-        try{
-					earthModel.LoadEarthModel(earth_model);
-        }
-        catch(const std::exception& err){
-					std::cout << err.what();
-        }
+    std::shared_ptr<LeptonInjector::IsotropicDirection> physical_ddist = std::make_shared<LeptonInjector::IsotropicDirection>();
 
-        std::vector<earthmodel::EarthSector> sectors = earthModel.GetSectors();
-        for(unsigned int i=0; i<sectors.size(); ++i) {
-            std::cerr << "Sector " << sectors[i].name << std::endl;
-            std::cerr << "id: " << sectors[i].material_id << std::endl;
-            std::cerr << "level: " << sectors[i].level << std::endl;
-            std::shared_ptr<const earthmodel::Geometry> geo = sectors[i].geo;
-            std::cerr << "Geo placement: " << geo->GetPlacement() << std::endl;
-            std::cerr << "density: " << sectors[i].density->Evaluate(geo->GetPlacement().GetPosition()) << std::endl;
-        }
-        cont.SetEarthModel(std::shared_ptr<earthmodel::EarthModel>(&earthModel));
+    std::vector<std::shared_ptr<LeptonInjector::WeightableDistribution>> physical_distributions = {
+        std::shared_ptr<LeptonInjector::WeightableDistribution>(edist),
+        std::shared_ptr<LeptonInjector::WeightableDistribution>(flux_units),
+        std::shared_ptr<LeptonInjector::WeightableDistribution>(physical_ddist),
+        std::shared_ptr<LeptonInjector::WeightableDistribution>(target_momentum_distribution),
+        std::shared_ptr<LeptonInjector::WeightableDistribution>(helicity_distribution)
+    };
 
-        cont.NameOutfile(output + ".h5");
-        cont.NameLicFile(output + ".lic");
-
-        // Run the program.
-        cont.Execute();
-    } catch(char const * s) {
-        std::cout << "Failure!" << std::endl;
-        std::cout << s << std::endl;
+    for(auto & injector : injector_pointers) {
+        inject_events(injector);
     }
+
 } catch(ExitStatus const & status) {
     return status.status;
 }
