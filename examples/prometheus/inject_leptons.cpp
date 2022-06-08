@@ -17,6 +17,11 @@
 #include "argagg.hpp"
 #include "date.h"
 
+struct ExitStatus {
+    ExitStatus(int status) : status(status) {}
+    int status;
+};
+
 enum class InjectionMode {
     Ranged,
     Volume
@@ -29,7 +34,7 @@ enum class InteractionType {
     GR_MU,
     GR_TAU,
     GR_HAD
-}
+};
 
 template <class Precision>
 std::string getISOCurrentTimestamp() {
@@ -37,7 +42,88 @@ std::string getISOCurrentTimestamp() {
     return date::format("%FT%TZ", date::floor<Precision>(now));
 }
 
-argagg::parser_results parse_arguments(int argc, char ** argv) {
+std::string interaction_to_string(InteractionType type) {
+    std::map<InteractionType, std::string> const interactions = {
+        {InteractionType::CC, "cc"},
+        {InteractionType::NC, "nc"},
+        {InteractionType::GR_E, "gr_e"},
+        {InteractionType::GR_MU, "gr_mu"},
+        {InteractionType::GR_TAU, "gr_tau"}
+    };
+    return interactions.at(type);
+}
+
+InteractionType string_to_interaction(std::string s) {
+    std::map<std::string, InteractionType> const interactions = {
+        {"cc", InteractionType::CC},
+        {"nc", InteractionType::NC},
+        {"gr_e", InteractionType::GR_E},
+        {"gr_mu", InteractionType::GR_MU},
+        {"gr_tau", InteractionType::GR_TAU}
+    };
+    return interactions.at(s);
+}
+
+std::string nu_to_string(LeptonInjector::Particle::ParticleType type) {
+    std::map<LeptonInjector::Particle::ParticleType, std::string> const interactions = {
+        {LeptonInjector::Particle::ParticleType::NuE, "nue"},
+        {LeptonInjector::Particle::ParticleType::NuMu, "numu"},
+        {LeptonInjector::Particle::ParticleType::NuTau, "nutau"},
+        {LeptonInjector::Particle::ParticleType::NuEBar, "nuebar"},
+        {LeptonInjector::Particle::ParticleType::NuMuBar, "numubar"},
+        {LeptonInjector::Particle::ParticleType::NuTauBar, "nutaubar"}
+    };
+    return interactions.at(type);
+}
+
+LeptonInjector::Particle::ParticleType string_to_nu(std::string s) {
+    std::map<std::string, LeptonInjector::Particle::ParticleType> const interactions = {
+        {"nue", LeptonInjector::Particle::ParticleType::NuE},
+        {"numu", LeptonInjector::Particle::ParticleType::NuMu},
+        {"nutau", LeptonInjector::Particle::ParticleType::NuTau},
+        {"nuebar", LeptonInjector::Particle::ParticleType::NuEBar},
+        {"numubar", LeptonInjector::Particle::ParticleType::NuMuBar},
+        {"nutaubar", LeptonInjector::Particle::ParticleType::NuTauBar}
+    };
+    return interactions.at(s);
+}
+
+std::vector<LeptonInjector::Particle::ParticleType> gen_nu_types() {
+    std::vector<LeptonInjector::Particle::ParticleType> nu_types = {
+        LeptonInjector::Particle::ParticleType::NuE,
+        LeptonInjector::Particle::ParticleType::NuMu,
+        LeptonInjector::Particle::ParticleType::NuTau,
+        LeptonInjector::Particle::ParticleType::NuEBar,
+        LeptonInjector::Particle::ParticleType::NuMuBar,
+        LeptonInjector::Particle::ParticleType::NuTauBar
+    };
+    return nu_types;
+}
+
+std::string get_total_xs_id(InteractionType type, LeptonInjector::Particle::ParticleType nu) {
+    std::string nu_string = nu_to_string(nu);
+    std::string interaction_string = interaction_to_string(type);
+    std::string id = nu_string + "_" + interaction_string + "_total_xs";
+    return id;
+}
+
+std::string get_diff_xs_id(InteractionType type, LeptonInjector::Particle::ParticleType nu) {
+    std::string nu_string = nu_to_string(nu);
+    std::string interaction_string = interaction_to_string(type);
+    std::string id = nu_string + "_" + interaction_string + "_diff_xs";
+    return id;
+}
+
+std::string get_total_xs_fname(std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, std::pair<std::string, std::string>> cross_sections, InteractionType type, LeptonInjector::Particle::ParticleType nu) {
+    return cross_sections[{type, nu}].second;
+}
+
+std::string get_diff_xs_fname(std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, std::pair<std::string, std::string>> cross_sections, InteractionType type, LeptonInjector::Particle::ParticleType nu) {
+    return cross_sections[{type, nu}].first;
+}
+
+
+std::tuple<argagg::parser, argagg::parser_results> parse_arguments(int argc, char ** argv) {
     argagg::parser argparser = {{
         {
             "help", {"-h", "--help"},
@@ -48,12 +134,12 @@ argagg::parser_results parse_arguments(int argc, char ** argv) {
             "Path and prefix for the output. Used for h5 and lic.", 1,
         },
         {
-            "dune_atmo_path", {"--dune-atmo-path"},
-            "Path to the DUNEAtmo source directory. Used for the injection cross section.", 1,
+            "xs_path", {"--cross-section-path"},
+            "Path to the cross sections.", 1,
         },
         {
-            "lepton_injector_path", {"--li", "--li-path", "--lepton-injector-path"},
-            "Path to the lepton injector source directory. Used for earth model resources.", 1,
+            "earth_model_path", {"--li", "--li-path", "--lepton-injector-path"},
+            "Path to the earth model resources.", 1,
         },
         {
             "earth_model", {"--earth-model", "--earth-density", "--earth-density-model"},
@@ -62,18 +148,6 @@ argagg::parser_results parse_arguments(int argc, char ** argv) {
         {
             "materials_model", {"--materials-model", "--materials-density", "--materials-density-model"},
             "Name of the materials density model.", 1,
-        },
-        {
-            "ice_type", {"--ice", "--ice-type"},
-            "The type of ice model.", 1,
-        },
-        {
-            "ice_angle", {"--ice-angle", "--ice-cap-angle"},
-            "Angle of the ice cap in degrees if it exists.", 1,
-        },
-        {
-            "depth", {"--depth", "--detector-depth"},
-            "Depth of the detector origin in meters.", 1,
         },
         {
             "minE", {"--min-energy", "--minE"},
@@ -378,34 +452,34 @@ argagg::parser_results parse_arguments(int argc, char ** argv) {
         fmt << usage.str() << argparser << std::endl
             << "Encountered exception while parsing arguments: " << e.what()
             << std::endl;
-        return EXIT_FAILURE;
+        throw ExitStatus(EXIT_FAILURE);
     }
 
     // Print the usage information when we help is requested
     if(args["help"]) {
         std::cerr << argparser;
-        return EXIT_SUCCESS;
+        throw ExitStatus(EXIT_SUCCESS);
     }
 
-    return args;
+    return std::make_tuple(argparser, args);
 }
 
-double get_seed(argagg::parser_results & args) {
+double get_seed(argagg::parser & argparser, argagg::parser_results & args) {
     // Grab the seed
     double seed = args["seed"].as<int>(-1);
     // Require seed to be set and positive
     if(seed < 0) {
         std::cerr << "--seed requires positive integer!" << std::endl << argparser;
-        return EXIT_FAILURE;
+        throw ExitStatus(EXIT_FAILURE);
     }
     return seed;
 }
 
-std::string get_output(argagg::parser_results & args) {
+std::string get_output(argagg::parser & argparser, argagg::parser_results & args) {
     // Require output prefix
     if(not args["output"]) {
         std::cerr << "--output required!" << std::endl << argparser;
-        return EXIT_FAILURE;
+        throw ExitStatus(EXIT_FAILURE);
     }
     std::string output = args["output"].as<std::string>("./injected/output_DUNE");
     return output;
@@ -414,12 +488,13 @@ std::string get_output(argagg::parser_results & args) {
 std::string get_path(argagg::parser_results & args) {
     // Require LI path
     std::string path;
-    if(args["lepton_injector_path"]) {
-        path = args["lepton_injector_path"].as<std::string>();
+    if(args["earth_model_path"]) {
+        path = args["earth_model_path"].as<std::string>();
     }
     else { // Try to grab it from the environment variables instead
         if (const char* env_p = getenv("GOLEMSOURCEPATH")){
-            path = std::string( env_p ) + "/LeptonInjectorDUNE/";
+            path = std::string( env_p ) + "/LeptonInjector/";
+            path += "resources/earthparams";
         }
         else {
             std::cerr << "WARNING no lepton injector path specified and GOLEMSOURCEPATH not set! Assuming earth model information is in ./resources/earthparams/" << std::endl;
@@ -428,13 +503,29 @@ std::string get_path(argagg::parser_results & args) {
     }
     if(path[path.size() - 1] != '/')
         path += "/";
-    path += "resources/earthparams";
 
     return path;
 }
 
+std::vector<InteractionType> get_allowed_interactions(argagg::parser_results const & args, LeptonInjector::Particle::ParticleType nu, std::vector<InteractionType> interactions_to_consider) {
+    std::vector<InteractionType> allowed;
+    std::string nu_string = nu_to_string(nu);
+    if(args[nu_string]) {
+        for(auto const & type : interactions_to_consider) {
+            std::string type_string = interaction_to_string(type);
+            bool is_glashow = type_string.rfind("gr", 0) == 0;
+            if(is_glashow and nu_string != "nuebar")
+                continue;
+            if(args[type_string] or (is_glashow and args["gr"])) {
+                allowed.push_back(type);
+            }
+        }
+    }
+    return allowed;
+}
+
 std::vector<std::string> gen_possible_interactions() {
-    return {"cc", "nc", "gr_e", "gr_mu", "gr_tau", "gr_had"}
+    return {"cc", "nc", "gr_e", "gr_mu", "gr_tau", "gr_had"};
 }
 
 std::vector<std::string> get_interactions(argagg::parser_results & args) {
@@ -499,10 +590,10 @@ std::map<std::string, std::pair<LeptonInjector::Particle::ParticleType, LeptonIn
     return secondaries;
 }
 
-std::string get_xs_base(argagg::parser_result & args) {
+std::string get_xs_base(argagg::parser_results & args) {
     std::string xs_base;
-    if(args["dune_atmo_path"]) {
-        xs_base = args["dune_atmo_path"].as<std::string>();
+    if(args["xs_path"]) {
+        xs_base = args["xs_path"].as<std::string>();
     }
     else {
         if (const char* env_p = getenv("GOLEMSOURCEPATH")){
@@ -515,12 +606,11 @@ std::string get_xs_base(argagg::parser_result & args) {
     }
     if(xs_base[-1] != '/')
         xs_base += "/";
-    xs_base += "cross_sections/csms_differential_v1.0/";
 
     return xs_base;
 }
 
-std::map<std::string, std::pair<std::string, std::string>> gen_default_cross_sections(std::string xs_base) {
+std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, std::pair<std::string, std::string>> gen_default_cross_sections(std::string xs_base) {
 
     std::string nu_cc_diff_xs = xs_base + "dsdxdy_nu_CC_iso.fits";
     std::string nu_cc_total_xs = xs_base + "sigma_nu_CC_iso.fits";
@@ -534,159 +624,173 @@ std::map<std::string, std::pair<std::string, std::string>> gen_default_cross_sec
     std::string nuebar_gr_diff_xs = xs_base + "dsdy_nuebar_GR.fits";
     std::string nuebar_gr_total_xs = xs_base + "sigma_nuebar_GR.fits";
 
-    std::map<std::string, std::pair<std::string, std::string>> default_cross_sections = {
-        {"nue_cc", {nu_cc_diff_xs, nu_cc_total_xs}},
-        {"nuebar_cc", {nubar_cc_diff_xs, nubar_cc_total_xs}},
-        {"numu_cc", {nu_cc_diff_xs, nu_cc_total_xs}},
-        {"numubar_cc", {nubar_cc_diff_xs, nubar_cc_total_xs}},
-        {"nutau_cc", {nu_cc_diff_xs, nu_cc_total_xs}},
-        {"nutaubar_cc", {nubar_cc_diff_xs, nubar_cc_total_xs}},
-        {"nue_nc", {nu_nc_diff_xs, nu_nc_total_xs}},
-        {"nuebar_nc", {nubar_nc_diff_xs, nubar_nc_total_xs}},
-        {"numu_nc", {nu_nc_diff_xs, nu_nc_total_xs}},
-        {"numubar_nc", {nubar_nc_diff_xs, nubar_nc_total_xs}},
-        {"nutau_nc", {nu_nc_diff_xs, nu_nc_total_xs}},
-        {"nutaubar_nc", {nubar_nc_diff_xs, nubar_nc_total_xs}},
-        {"nuebar_gr_e", {nuebar_gr_diff_xs, nuebar_gr_total_xs}},
-        {"nuebar_gr_mu", {nuebar_gr_diff_xs, nuebar_gr_total_xs}},
-        {"nuebar_gr_tau", {nuebar_gr_diff_xs, nuebar_gr_total_xs}},
-        {"nuebar_gr_had", {nuebar_gr_diff_xs, nuebar_gr_total_xs}},
+    std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, std::pair<std::string, std::string>> default_cross_sections = {
+        {{InteractionType::CC, LeptonInjector::Particle::ParticleType::NuE}, {nu_cc_diff_xs, nu_cc_total_xs}},
+        {{InteractionType::CC, LeptonInjector::Particle::ParticleType::NuEBar}, {nubar_cc_diff_xs, nubar_cc_total_xs}},
+        {{InteractionType::CC, LeptonInjector::Particle::ParticleType::NuMu}, {nu_cc_diff_xs, nu_cc_total_xs}},
+        {{InteractionType::CC, LeptonInjector::Particle::ParticleType::NuMuBar}, {nubar_cc_diff_xs, nubar_cc_total_xs}},
+        {{InteractionType::CC, LeptonInjector::Particle::ParticleType::NuTau}, {nu_cc_diff_xs, nu_cc_total_xs}},
+        {{InteractionType::CC, LeptonInjector::Particle::ParticleType::NuTauBar}, {nubar_cc_diff_xs, nubar_cc_total_xs}},
+        {{InteractionType::NC, LeptonInjector::Particle::ParticleType::NuE}, {nu_nc_diff_xs, nu_nc_total_xs}},
+        {{InteractionType::NC, LeptonInjector::Particle::ParticleType::NuEBar}, {nubar_nc_diff_xs, nubar_nc_total_xs}},
+        {{InteractionType::NC, LeptonInjector::Particle::ParticleType::NuMu}, {nu_nc_diff_xs, nu_nc_total_xs}},
+        {{InteractionType::NC, LeptonInjector::Particle::ParticleType::NuMuBar}, {nubar_nc_diff_xs, nubar_nc_total_xs}},
+        {{InteractionType::NC, LeptonInjector::Particle::ParticleType::NuTau}, {nu_nc_diff_xs, nu_nc_total_xs}},
+        {{InteractionType::NC, LeptonInjector::Particle::ParticleType::NuTauBar}, {nubar_nc_diff_xs, nubar_nc_total_xs}},
+        {{InteractionType::GR_E, LeptonInjector::Particle::ParticleType::NuEBar}, {nuebar_gr_diff_xs, nuebar_gr_total_xs}},
+        {{InteractionType::GR_MU, LeptonInjector::Particle::ParticleType::NuEBar}, {nuebar_gr_diff_xs, nuebar_gr_total_xs}},
+        {{InteractionType::GR_TAU, LeptonInjector::Particle::ParticleType::NuEBar}, {nuebar_gr_diff_xs, nuebar_gr_total_xs}},
+        {{InteractionType::GR_HAD, LeptonInjector::Particle::ParticleType::NuEBar}, {nuebar_gr_diff_xs, nuebar_gr_total_xs}}
     };
     return default_cross_sections;
 }
 
-void update_cross_sections(argagg::parser_result & args, std::map<std::string, std::pair<std::string, std::string>> & cross_sections, std::map<std::string, bool> & replaced_cross_sections) {
-    std::function<void(std::string, std::string)> replace_total_xs = [&] (std::string key, std::string name) -> void {
-        if(name != cross_sections[key].second) {
-            replaced_cross_sections[key] = true;
+void update_cross_sections(argagg::parser_results & args, std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, std::pair<std::string, std::string>> & cross_sections, std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, bool> & replaced_cross_sections) {
+    std::function<void(InteractionType, LeptonInjector::Particle::ParticleType, std::string)> replace_total_xs = [&] (InteractionType type, LeptonInjector::Particle::ParticleType nu, std::string name) -> void {
+        if(name != cross_sections[{type, nu}].second) {
+            replaced_cross_sections[{type, nu}] = true;
         }
-        cross_sections[key].second = name;
+        cross_sections[{type, nu}].second = name;
     };
 
-    std::function<void(std::string, std::string)> replace_diff_xs = [&] (std::string key, std::string name) -> void {
-        if(name != cross_sections[key].first) {
-            replaced_cross_sections[key] = true;
+    std::function<void(InteractionType, LeptonInjector::Particle::ParticleType, std::string)> replace_diff_xs = [&] (InteractionType type, LeptonInjector::Particle::ParticleType nu, std::string name) -> void {
+        if(name != cross_sections[{type, nu}].first) {
+            replaced_cross_sections[{type, nu}] = true;
         }
-        cross_sections[key].first = name;
+        cross_sections[{type, nu}].first = name;
     };
 
+    std::vector<InteractionType> gr_types = {InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD};
     // Check the GR arguments
     if(args["nuebar_gr_diff_xs"]) {
         std::string nuebar_gr_diff_xs = args["nuebar_gr_diff_xs"].as<std::string>();
-        replace_diff_xs("nuebar_gr", nuebar_gr_diff_xs);
+        for(unsigned int i=0; i<gr_types.size(); ++i) {
+            replace_diff_xs(gr_types[i], LeptonInjector::Particle::ParticleType::NuEBar, nuebar_gr_diff_xs);
+        }
     }
     if(args["nuebar_gr_total_xs"]) {
         std::string nuebar_gr_total_xs = args["nuebar_gr_total_xs"].as<std::string>();
-        replace_total_xs("nuebar_gr", nuebar_gr_total_xs);
+        for(unsigned int i=0; i<gr_types.size(); ++i) {
+            replace_total_xs(gr_types[i], LeptonInjector::Particle::ParticleType::NuEBar, nuebar_gr_total_xs);
+        }
     }
 
-    std::vector<std::string> possible_interaction_suffixes = {"e", "mu", "tau", "had"};
-    for(unsigned int i=0; i<possible_interaction_suffixes.size(); ++i) {
-        std::string diff = nuebar_gr_diff_xs;
-        std::string total = nuebar_gr_total_xs;
-        std::string id = "nuebar_gr_" + possible_interaction_suffixes[i];
-        if(args[id + "_diff_xs"]) {
-            diff = args[id + "_diff_xs"].as<std::string>();
-            replace_diff_xs(id, diff);
+    for(unsigned int i=0; i<gr_types.size(); ++i) {
+        std::string total_id = get_total_xs_id(gr_types[i], LeptonInjector::Particle::ParticleType::NuEBar);
+        std::string diff_id = get_diff_xs_id(gr_types[i], LeptonInjector::Particle::ParticleType::NuEBar);
+        if(args[diff_id]) {
+            std::string diff = args[diff_id].as<std::string>();
+            replace_diff_xs(gr_types[i], LeptonInjector::Particle::ParticleType::NuEBar, diff);
         }
-        if(args[id + "_total_xs"]) {
-            total = args[id + "_total_xs"].as<std::string>();
-            replace_total_xs(id, total);
+        if(args[total_id]) {
+            std::string total = args[total_id].as<std::string>();
+            replace_total_xs(gr_types[i], LeptonInjector::Particle::ParticleType::NuEBar, total);
         }
     }
+
+
+    std::vector<InteractionType> cc_nc = {InteractionType::CC, InteractionType::NC};
+    std::vector<LeptonInjector::Particle::ParticleType> nus = gen_nu_types();
+    std::vector<LeptonInjector::Particle::ParticleType> matter_nus = {
+        LeptonInjector::Particle::ParticleType::NuE,
+        LeptonInjector::Particle::ParticleType::NuMu,
+        LeptonInjector::Particle::ParticleType::NuTau
+    };
+    std::vector<LeptonInjector::Particle::ParticleType> antimatter_nus = {
+        LeptonInjector::Particle::ParticleType::NuE,
+        LeptonInjector::Particle::ParticleType::NuMu,
+        LeptonInjector::Particle::ParticleType::NuTau
+    };
 
     // Check generic flavor xs arguments
-    std::vector<std::string> cc_nc = {"cc", "nc"};
-    std::vector<std::string> flavors = {"e", "mu", "tau"};
-    std::vector<std::string> prefixes = {"nu", "nubar"}
-    for(std::string prefix : prefixes) {
-        for(std::string & interaction : cc_nc) {
-            std::string key = prefix + "_" + interaction;
-            if(args[key + "_diff_xs"]) {
-                std::string diff = args[key + "_diff_xs"].as<std::string>(cross_sections[key].first);
-                for(std::string & flavor : flavors) {
-                    std::string id = prefix + flavor + "_" + interaction;
-                    replace_diff_xs(id, diff);
-                }
+    for(InteractionType interaction : cc_nc) {
+        std::string diff_key = std::string("nu_") + interaction_to_string(interaction) + "diff_xs";
+        std::string total_key = std::string("nu_") + interaction_to_string(interaction) + "total_xs";
+        for(LeptonInjector::Particle::ParticleType nu : matter_nus) {
+            if(args[diff_key]) {
+                std::string diff = args[diff_key].as<std::string>(cross_sections[{interaction, nu}].first);
+                replace_diff_xs(interaction, nu, diff);
             }
-            if(args[key + "_total_xs"]) {
-                std::string total = args[key + "_total_xs"].as<std::string>(cross_sections[key].second);
-                for(std::string & flavor : flavors) {
-                    std::string id = prefix + flavor + "_" + interaction;
-                    replace_total_xs(id, total);
-                }
+            if(args[total_key]) {
+                std::string total = args[total_key].as<std::string>(cross_sections[{interaction, nu}].second);
+                replace_total_xs(interaction, nu, total);
+            }
+        }
+        diff_key = std::string("nubar_") + interaction_to_string(interaction) + "diff_xs";
+        total_key = std::string("nubar_") + interaction_to_string(interaction) + "total_xs";
+        for(LeptonInjector::Particle::ParticleType nu : antimatter_nus) {
+            if(args[diff_key]) {
+                std::string diff = args[diff_key].as<std::string>(cross_sections[{interaction, nu}].first);
+                replace_diff_xs(interaction, nu, diff);
+            }
+            if(args[total_key]) {
+                std::string total = args[total_key].as<std::string>(cross_sections[{interaction, nu}].second);
+                replace_total_xs(interaction, nu, total);
             }
         }
     }
 
+
     // Check specific flavor xs arguments
-    std::vector<std::string> interactions = gen_possible_interactions();
-    std::vector<std::string> neutrinos = gen_possible_neutrinos();
-    for(std::string & interaction : interactions) {
-        bool is_glashow = interaction.rfind("gr", 0) == 0;
-        for(std::string & neutrino : neutrinos) {
-            if(not args[neutrino])
-                continue;
-            if(is_glashow and neutrino != "nuebar")
-                continue;
-            std::string id = neutrino + "_" + interaction;
-
-            std::string diff_xs_id = id + "_diff_xs";
-            std::string diff_xs =
-                args[diff_xs_id].as<std::string>(cross_sections[id].first);
-            replace_diff_xs(id, diff_xs);
-
-            std::string total_xs_id = id + "_total_xs";
-            std::string total_xs =
-                args[total_xs_id].as<std::string>(cross_sections[id].second);
-            replace_total_xs(id, total_xs);
+    for(LeptonInjector::Particle::ParticleType nu : nus) {
+        for(InteractionType interaction : cc_nc) {
+            std::string diff_key = get_diff_xs_id(interaction, nu);
+            std::string total_key = get_total_xs_id(interaction, nu);
+            if(args[diff_key]) {
+                std::string diff = args[diff_key].as<std::string>(cross_sections[{interaction, nu}].first);
+                replace_diff_xs(interaction, nu, diff);
+            }
+            if(args[total_key]) {
+                std::string total = args[total_key].as<std::string>(cross_sections[{interaction, nu}].second);
+                replace_total_xs(interaction, nu, total);
+            }
         }
     }
 }
 
-void warn_user_cross_sections(argagg::parser_result & args, std::map<std::string, std::pair<std::string, std::string>> & cross_sections, std::map<std::string, bool> & replaced_cross_sections) {
-    std::function<bool(std::vector<std::string>)> any_replaced = [] (std::vector<std::string> keys) -> bool {
+void warn_user_cross_sections(argagg::parser_results & args, std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, std::pair<std::string, std::string>> & cross_sections, std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, bool> & replaced_cross_sections) {
+    std::function<bool(LeptonInjector::Particle::ParticleType, std::vector<InteractionType>)> any_replaced = [&] (LeptonInjector::Particle::ParticleType nu, std::vector<InteractionType> types) -> bool {
         bool b = false;
-        for(auto const & k : keys) {
-            b |= replaced_cross_sections.at(k);
+        for(auto const & t : types) {
+            b |= replaced_cross_sections.at({t, nu});
         }
         return b;
     };
-    std::function<bool(std::vector<std::string>)> all_replaced = [] (std::vector<std::string> keys) -> bool {
+    std::function<bool(LeptonInjector::Particle::ParticleType, std::vector<InteractionType>)> all_replaced = [&] (LeptonInjector::Particle::ParticleType nu, std::vector<InteractionType> types) -> bool {
         bool b = true;
-        for(auto const & k : keys) {
-            b &= replaced_cross_sections.at(k);
+        for(auto const & t : types) {
+            b &= replaced_cross_sections.at({t, nu});
         }
         return b;
     };
 
-    std::vector<std::pair<std::string, std::vector<std::string>>> all_tags = {
-        {"nue", {"nue_cc", "nue_nc"}},
-        {"numu", {"numu_cc", "numu_nc"}},
-        {"nutau", {"nutau_cc", "nutau_nc"}},
-        {"nubar", {"nuebar_cc", "nuebar_nc", "nuebar_gr_e", "nuebar_gr_mu", "nuebar_gr_tau", "nuebar_gr_had"}},
-        {"numubar", {"numubar_cc", "numubar_nc"}},
-        {"nutaubar", {"nutaubar_cc", "nutaubar_nc"}},
+    std::vector<std::pair<LeptonInjector::Particle::ParticleType, std::vector<InteractionType>>> all_tags = {
+        {LeptonInjector::Particle::ParticleType::NuE, {InteractionType::CC, InteractionType::NC}},
+        {LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC, InteractionType::NC}},
+        {LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC, InteractionType::NC}},
+        {LeptonInjector::Particle::ParticleType::NuEBar, {InteractionType::CC, InteractionType::NC, InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD}},
+        {LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC, InteractionType::NC}},
+        {LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC, InteractionType::NC}},
     };
 
-    std::vector<std::string> bad_tags;
+    std::vector<LeptonInjector::Particle::ParticleType> bad_nus;
 
     for(auto const & tags : all_tags) {
-        if(any_replaced(tags.second) and not all_replaced(tags.second)) {
-            bad_tags.push_back(tags.first);
+        if(any_replaced(tags.first, tags.second) and not all_replaced(tags.first, tags.second)) {
+            bad_nus.push_back(tags.first);
         }
     }
-    if(bad_tags.size() > 0) {
+    if(bad_nus.size() > 0) {
         std::stringstream ss;
-        for(unsigned int i=0; i<bad_tags.size()-1; ++i) {
-            ss << bad_tags[i] << ",";
+        for(unsigned int i=0; i<bad_nus.size()-1; ++i) {
+            ss << nu_to_string(bad_nus[i]) << ",";
         }
-        ss << bad_tags[bad_tags.size()-1];
+        ss << nu_to_string(bad_nus[bad_nus.size()-1]);
         for(unsigned int i=0; i<5; ++i) {
             std::cerr << "WARNING!" << std::endl;
         }
         std::string flavor_list = ss.str();
-        if(bad_tags.size() > 1) {
+        if(bad_nus.size() > 1) {
             flavor_list = "{" + flavor_list + "}";
         }
         for(unsigned int i=0; i<10; ++i) {
@@ -698,7 +802,7 @@ void warn_user_cross_sections(argagg::parser_result & args, std::map<std::string
     }
 }
 
-std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::vector<InteractionType>, int>> get_injectors(argagg::parser_result & args) {
+std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::vector<InteractionType>, int>> get_injectors(argagg::parser_results & args) {
     bool ranged = bool(args["ranged_mode"]);
     bool volume = bool(args["volume_mode"]);
     bool ranged_and_volume = bool(args["ranged_and_volume_mode"]);
@@ -709,11 +813,11 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
         std::cerr << "WARNING! Defaulting to automatic injection mode selection!" << std::endl;
         automatic = true;
     } else if(n_true > 1) {
-        std::cerr << "Fatal Error: More than one inejction mode option specified. You must choose a single injection mode option." << std:endl;
+        std::cerr << "Fatal Error: More than one inejction mode option specified. You must choose a single injection mode option." << std::endl;
         throw std::runtime_error("Fatal Error: More than one inejction mode option specified. You must choose a single injection mode option.");
     }
 
-    std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::string, int>> injectors;
+    std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::vector<InteractionType>, int>> injectors;
     if(automatic) {
         if(args["nue"]) {
             if(args["cc"] and args["nc"]) {
@@ -734,7 +838,7 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int total_events = int(args["n_events"].as<float>());
                 int ranged_events = total_events / 2;
                 int volume_events = total_events - ranged_events;
-                std::cout << "Injecting half of NuMu events with CC in Ranged mode, and half of NuMu events with CC+NC in Volume mode."
+                std::cout << "Injecting half of NuMu events with CC in Ranged mode, and half of NuMu events with CC+NC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC}, ranged_events});
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC, InteractionType::NC}, volume_events});
             }
@@ -742,12 +846,12 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int total_events = int(args["n_events"].as<float>());
                 int ranged_events = total_events / 2;
                 int volume_events = total_events - ranged_events;
-                std::cout << "Injecting half of NuMu events with CC in Ranged mode, and half of NuMu events with CC in Volume mode."
+                std::cout << "Injecting half of NuMu events with CC in Ranged mode, and half of NuMu events with CC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC}, ranged_events});
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::CC}, volume_events});
             }
             else if(args["nc"]) {
-                std::cout << "Injecting NuMu NC in Volume mode."
+                std::cout << "Injecting NuMu NC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMu, {InteractionType::NC}, int(args["n_events"].as<float>())});
             }
         }
@@ -756,7 +860,7 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int total_events = int(args["n_events"].as<float>());
                 int ranged_events = total_events / 2;
                 int volume_events = total_events - ranged_events;
-                std::cout << "Injecting half of NuTau events with CC in Ranged mode, and half of NuTau events with CC+NC in Volume mode."
+                std::cout << "Injecting half of NuTau events with CC in Ranged mode, and half of NuTau events with CC+NC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC}, ranged_events});
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC, InteractionType::NC}, volume_events});
             }
@@ -764,12 +868,12 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int total_events = int(args["n_events"].as<float>());
                 int ranged_events = total_events / 2;
                 int volume_events = total_events - ranged_events;
-                std::cout << "Injecting half of NuTau events with CC in Ranged mode, and half of NuTau events with CC in Volume mode."
+                std::cout << "Injecting half of NuTau events with CC in Ranged mode, and half of NuTau events with CC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC}, ranged_events});
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::CC}, volume_events});
             }
             else if(args["nc"]) {
-                std::cout << "Injecting NuTau NC in Volume mode."
+                std::cout << "Injecting NuTau NC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTau, {InteractionType::NC}, int(args["n_events"].as<float>())});
             }
         }
@@ -778,7 +882,6 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
 
             // gr or gr_mu or gr_tau --> ranged
 
-            std::vector<std::string> nue_interactions = {"cc", "nc", "gr_e", "gr_mu", "gr_tau", "gr_had"};
             std::vector<InteractionType> nue_interaction_types = {InteractionType::CC, InteractionType::NC, InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD};
             std::map<InteractionType, std::string> interaction_type_strings;
             std::vector<InteractionType> gr_interactions = {InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD};
@@ -787,11 +890,11 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
             std::map<InteractionType, bool> enabled_interactions;
             std::vector<InteractionType> enabled_interaction_types;
             std::vector<InteractionType> enabled_ranged_types;
-            for(unsigned int i=0; i<nue_interactions.size(); ++i) {
-                std::string const & s = nue_interactions[i];
+            for(unsigned int i=0; i<nue_interaction_types.size(); ++i) {
                 InteractionType const & t = nue_interaction_types[i];
+                std::string s = interaction_to_string(t);
                 interaction_type_strings.emplace(t, s);
-                enabled_interactions[s] = bool(args[s]);
+                enabled_interactions[t] = bool(args[s]);
                 if(args[s]) {
                     enabled_interaction_types.push_back(t);
                     if(std::find(ranged_interactions.begin(), ranged_interactions.end(), t) != ranged_interactions.end()) {
@@ -844,11 +947,11 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int n_events = int(args["n_events"].as<float>());
                 int n_ranged = int(0.107 * enabled_ranged_types.size() * n_events);
                 int n_volume = n_events - n_ranged;
-                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuEBar, enabled_interactions, n_ranged});
-                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuEBar, enabled_interactions, n_volume});
+                injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuEBar, enabled_ranged_types, n_ranged});
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuEBar, enabled_interaction_types, n_volume});
             } else {
-                std::cout << "Injecting NuEBar " + " in Volume mode." << std::endl;
-                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuEBar, enabled_interactions, int(args["n_events"].as<float>())});
+                std::cout << "Injecting NuEBar in Volume mode." << std::endl;
+                injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuEBar, enabled_interaction_types, int(args["n_events"].as<float>())});
             }
         }
         if(args["numubar"]) {
@@ -856,7 +959,7 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int total_events = int(args["n_events"].as<float>());
                 int ranged_events = total_events / 2;
                 int volume_events = total_events - ranged_events;
-                std::cout << "Injecting half of NuMuBar events with CC in Ranged mode, and half of NuMuBar events with CC+NC in Volume mode."
+                std::cout << "Injecting half of NuMuBar events with CC in Ranged mode, and half of NuMuBar events with CC+NC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC}, ranged_events});
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC, InteractionType::NC}, volume_events});
             }
@@ -864,12 +967,12 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int total_events = int(args["n_events"].as<float>());
                 int ranged_events = total_events / 2;
                 int volume_events = total_events - ranged_events;
-                std::cout << "Injecting half of NuMuBar events with CC in Ranged mode, and half of NuMuBar events with CC in Volume mode."
+                std::cout << "Injecting half of NuMuBar events with CC in Ranged mode, and half of NuMuBar events with CC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC}, ranged_events});
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::CC}, volume_events});
             }
             else if(args["nc"]) {
-                std::cout << "Injecting NuMuBar NC in Volume mode."
+                std::cout << "Injecting NuMuBar NC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuMuBar, {InteractionType::NC}, int(args["n_events"].as<float>())});
             }
         }
@@ -878,7 +981,7 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int total_events = int(args["n_events"].as<float>());
                 int ranged_events = total_events / 2;
                 int volume_events = total_events - ranged_events;
-                std::cout << "Injecting half of NuTauBar events with CC in Ranged mode, and half of NuTauBar events with CC+NC in Volume mode."
+                std::cout << "Injecting half of NuTauBar events with CC in Ranged mode, and half of NuTauBar events with CC+NC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC}, ranged_events});
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC, InteractionType::NC}, volume_events});
             }
@@ -886,12 +989,12 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
                 int total_events = int(args["n_events"].as<float>());
                 int ranged_events = total_events / 2;
                 int volume_events = total_events - ranged_events;
-                std::cout << "Injecting half of NuTauBar events with CC in Ranged mode, and half of NuTauBar events with CC in Volume mode."
+                std::cout << "Injecting half of NuTauBar events with CC in Ranged mode, and half of NuTauBar events with CC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Ranged, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC}, ranged_events});
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::CC}, volume_events});
             }
             else if(args["nc"]) {
-                std::cout << "Injecting NuTauBar NC in Volume mode."
+                std::cout << "Injecting NuTauBar NC in Volume mode." << std::endl;
                 injectors.push_back({InjectionMode::Volume, LeptonInjector::Particle::ParticleType::NuTauBar, {InteractionType::NC}, int(args["n_events"].as<float>())});
             }
         }
@@ -914,31 +1017,67 @@ std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, st
             modes.push_back(InjectionMode::Ranged);
             modes.push_back(InjectionMode::Volume);
         }
-        std::vector<std::string> flavors = {"nue", "numu", "nutau", "nuebar", "numubar", "nutaubar"};
-        std::vector<std::string> nue_interactions = {"cc", "nc", "gr_e", "gr_mu", "gr_tau", "gr_had"};
-        std::vector<std::string> interactions = {"cc", "nc"};
-        std::vector<InteractionType> nue_interaction_types = {InteractionType::CC, InteractionType::NC, InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD};
-        std::vector<InteractionType> interaction_types;
-        for(auto const & mode : modes) {
-            for(unsigned int i=0; i<nue_interaction_types.size(); ++i) {
+        std::vector<LeptonInjector::Particle::ParticleType> nu_types = {
+            LeptonInjector::Particle::ParticleType::NuE,
+            LeptonInjector::Particle::ParticleType::NuMu,
+            LeptonInjector::Particle::ParticleType::NuTau,
+            LeptonInjector::Particle::ParticleType::NuEBar,
+            LeptonInjector::Particle::ParticleType::NuMuBar,
+            LeptonInjector::Particle::ParticleType::NuTauBar
+        };
+        std::vector<InteractionType> interaction_types = {InteractionType::CC, InteractionType::NC, InteractionType::GR_E, InteractionType::GR_MU, InteractionType::GR_TAU, InteractionType::GR_HAD};
+        for(unsigned int m=0; m<modes.size(); ++m) {
+            for(unsigned int n=0; n<nu_types.size(); ++n) {
+                std::vector<InteractionType> interactions_to_inject = get_allowed_interactions(args, nu_types[n], interaction_types);
+                if(interactions_to_inject.size() > 0 and events_to_inject[m] > 0) {
+                    injectors.push_back({modes[m], nu_types[n], interactions_to_inject, events_to_inject[m]});
+                }
             }
         }
     }
+    return injectors;
+}
+
+std::map<std::pair<std::string, std::string>, std::shared_ptr<LeptonInjector::CrossSection>> get_xs_ptrs_by_fname(std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, std::pair<std::string, std::string>> & cross_sections) {
+    std::map<std::pair<std::string, std::string>, std::vector<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>>> xs_fname_to_type;
+    for(auto const & xs : cross_sections) {
+		xs_fname_to_type[xs.second].push_back(xs.first);
+    }
+    std::map<std::pair<std::string, std::string>, std::shared_ptr<LeptonInjector::CrossSection>> xs_ptrs_by_fname;
+
+    std::vector<LeptonInjector::Particle::ParticleType> dis_target_types = {LeptonInjector::Particle::ParticleType::Nucleon};
+    for(auto const & xs : xs_fname_to_type) {
+        std::shared_ptr<LeptonInjector::CrossSection> cross_section;
+        std::vector<LeptonInjector::Particle::ParticleType> dis_primary_types;
+        for(auto const & itype_ptype : xs.second) {
+            dis_primary_types.push_back(itype_ptype.second);
+        }
+        std::shared_ptr<LeptonInjector::DISFromSpline> dis_cross_section = std::make_shared<LeptonInjector::DISFromSpline>(xs.first.first, xs.first.second, dis_primary_types, dis_target_types);
+        xs_ptrs_by_fname[xs.first] = std::shared_ptr<LeptonInjector::CrossSection>(dis_cross_section);
+    }
+    return xs_ptrs_by_fname;
+}
+std::shared_ptr<earthmodel::EarthModel> get_earth_model(argagg::parser & args) {
+    std::string path = get_path(args);
+    std::string earth_model = args["earth_model"].as<std::string>("PREM_mmc");
+    std::string materials_model = args["materials_model"].as<std::string>("Standard");
+    std::shared_ptr<earthmodel::EarthModel> earth_model = std::make_shared<earthmodel::EarthModel>();
+    earth_model->SetPath(path);
+    earth_model->LoadMaterialModel(materials_file);
+    earth_model->LoadEarthModel(earth_file);
+    return earth_model;
 }
 
 int main(int argc, char ** argv) {
+try {
+    std::tuple<argagg::parser, argagg::parser_results> argarg = parse_arguments(argc, argv);
+    argagg::parser & argparser = std::get<0>(argarg);
+    argagg::parser_results & args = std::get<1>(argarg);
 
-    argagg::parser_results args = parse_arguments(argc, argv);
-
-    double seed = get_seed(args);
-    std::string output = get_output(args);
+    double seed = get_seed(argparser, args);
+    std::string output = get_output(argparser, args);
     std::string path = get_path(args);
 
-    std::string earth_model = args["earth_model"].as<std::string>("PREM_mmc");
-    std::string materials_model = args["materials_model"].as<std::string>("Standard");
-    std::string ice_type = args["ice_type"].as<std::string>("SimpleIceCap");
-    double ice_angle = args["ice_angle"].as<double>(20.);
-    double depth = args["depth"].as<double>(1480.);
     int n_events = int(args["n_events"].as<float>(float(1e5)));
 
     double minE = args["minE"].as<double>(1e2)*LeptonInjector::Constants::GeV;
@@ -957,98 +1096,69 @@ int main(int argc, char ** argv) {
     std::vector<std::string> neutrinos = get_neutrinos(args);
     std::map<std::string, std::pair<LeptonInjector::Particle::ParticleType, LeptonInjector::Particle::ParticleType>> secondaries = gen_secondaries();
     std::string xs_base = get_xs_base(args);
-    std::map<std::string, std::pair<std::string, std::string>> cross_sections = gen_default_cross_sectionst(xs_base);
-    std::map<std::string, bool> replaced_cross_sections;
-    for(auto const & default_xs : default_cross_sections) {
+    std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, std::pair<std::string, std::string>> cross_sections = gen_default_cross_sections(xs_base);
+    std::map<std::pair<InteractionType, LeptonInjector::Particle::ParticleType>, bool> replaced_cross_sections;
+    for(auto const & default_xs : cross_sections) {
         replaced_cross_sections.emplace(default_xs.first, false);
     }
 
     update_cross_sections(args, cross_sections, replaced_cross_sections);
     warn_user_cross_sections(args, cross_sections, replaced_cross_sections);
 
-
     std::cout << getISOCurrentTimestamp<std::chrono::seconds>() << std::endl;
 
-
-    std::vector<LeptonInjector::InjectorBase> injectors;
-    std::vector<std::shared_ptr<CrossSection>> cross_sections;
-    for(std::string & interaction : interactions) {
-        bool is_glashow = interaction.rfind("gr", 0) == 0;
-        if(args[interaction]) {
-            for(std::string & neutrino : neutrinos) {
-                if(args[neutrino]) {
-                    if(is_glashow and neutrino != "nuebar") {
-                        continue;
-                    }
-                    std::string id = neutrino + "_" + interaction;
-
-                    std::string diff_xs_id = id + "_diff_xs";
-                    std::string diff_xs =
-                        args[diff_xs_id].as<std::string>(default_cross_sections[id].first);
-
-                    std::string total_xs_id = id + "_total_xs";
-                    std::string total_xs =
-                        args[total_xs_id].as<std::string>(default_cross_sections[id].second);
-
-                    LeptonInjector::Particle::ParticleType first_particle = secondaries[id].first;
-                    LeptonInjector::Particle::ParticleType second_particle = secondaries[id].second;
-
-                    if(n_ranged_events > 0) {
-                        std::cout << "loading ranged injector\n";
-                        LeptonInjector::RangedInjector injector(n_ranged_events,
-                                first_particle,
-                                //second_particle,
-                                diff_xs,
-                                total_xs,
-                                true); // is_ranged
-                        injectors.push_back(injector);
-                    }
-                    if(n_volume_events > 0) {
-                        LeptonInjector::Injector injector(n_volume_events,
-                                first_particle,
-                                second_particle,
-                                diff_xs,
-                                total_xs,
-                                false); // is_ranged
-                        injectors.push_back(injector);
-                    }
-
-                }
-                else {
-                    continue;
-                }
-            }
-        }
-        else {
-            continue;
-        }
-    }
+    std::vector<std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::vector<InteractionType>, int>> injectors = get_injectors(args);
 
     if(injectors.size() == 0) {
         std::cerr << "Must have at least one neutrino and one interaction type specified!" << std::endl;
-        return EXIT_FAILURE;
+        throw ExitStatus(EXIT_FAILURE);
     }
 
-    // build the Controller object. This will facilitate the simulation itself
-    // We need to pass the first injector while building this Controller
-    // Dimensions of DUNE module is 58.2 x 3.5 x 12 x 4
-    LeptonInjector::Controller cont(injectors[0],
-            minE, maxE,
-            gamma,
-            minAzimuth, maxAzimuth,
-            minZenith, maxZenith,
-            ranged_radius, // injection radius
-            ranged_length, // injection length
-            volume_radius, // cylinder radius
-            volume_height); // cylinder height
+    std::map<std::pair<std::string, std::string>, std::shared_ptr<LeptonInjector::CrossSection>> xs_ptrs_by_fname = get_xs_ptrs_by_fname(cross_sections);
 
+    std::shared_ptr<earthmodel::EarthModel> earth_model = get_earth_model(args);
 
-    for(unsigned int i=1; i<injectors.size(); ++i) {
-        cont.AddInjector(injectors[i]);
+    // Pick energy distribution
+    std::shared_ptr<PrimaryEnergyDistribution> edist = std::make_shared<LeptonInjector::PowerLaw>(gamma, minE, maxE);
+
+    // Choose injection direction
+    std::shared_ptr<PrimaryDirectionDistribution> ddist = std::make_shared<LeptonInjector::Cone>(earthmodel::Vector3D{0.0, 0.0, 1.0}, minZenith, maxZenith, minAzimuth, maxAzimuth);
+
+    // Targets should be stationary
+    std::shared_ptr<LeptonInjector::TargetMomentumDistribution> target_momentum_distribution = std::make_shared<LeptonInjector::TargetAtRest>();
+
+    // Let us inject according to the decay distribution
+    std::shared_ptr<DepthFunction> depth_func = std::make_shared<LeptonInjector::LeptonDepthFunction>();
+
+    // Helicity distribution
+    std::shared_ptr<PrimaryNeutrinoHelicityDistribution> helicity_distribution = std::make_shared<LeptonInjector::PrimaryNeutrinoHelicityDistribution>();
+
+    std::vector<std::shared_ptr<LeptonInjector::InjectorBase>> injector_pointers;
+
+    for(unsigned inj_i=0; inj_i<injectors.size(); ++inj_i) {
+        std::tuple<InjectionMode, LeptonInjector::Particle::ParticleType, std::vector<InteractionType>, int> injector_config = injectors[inj_i];
+        InjectionMode injection_mode = std::get<0>(injector_config);
+        LeptonInjector::Particle::ParticleType particle_types = std::get<1>(injector_config);
+        std::vector<InteractionType> interaction_types = std::get<2>(injector_config);
+        int n_events = std::get<3>(injector_config);
+        std::vector<std::shared_ptr<LeptonInjector::CrossSection>> injector_cross_sections;
+        std::map<std::pair<std::string, std::string>, std::shared_ptr<LeptonInjector::CrossSection>> injector_cross_sections_by_fname;
+        for(auto const & interaction : interaction_types) {
+            std::pair<InteractionType, LeptonInjector::Particle::ParticleType> xs_key = {interaction, primary_type};
+            std::pair<std::string, std::string> xs_fname = cross_sections[xs_key];
+            injector_cross_sections_by_fname[xs_fname] = xs_ptrs_by_fname[xs_fname];
+        }
+        for(auto & xs : xs_ptrs_by_fname) {
+            injector_cross_sections.push_back(xs.second);
+        }
+
+        LeptonInjector::PrimaryInjector primary_injector(primary_type);
+
+        std::shared_ptr<LeptonInjector::InjectorBase> injector;
+        if(mode == InjectionMode::Ranged) {
+            injector_pointers.push_back(std::make_shared<LeptonInjector::ColumnDepthLeptonInjector>(n_events, primary_injector, injector_cross_sections, earth_model, random, edist, ddist, target_momentum_distribution, depth_func, ranged_radius, ranged_length, helicity_distribution));
+        }
     }
-
-
-    cont.setSeed(seed);
 
 
     std::cout << "Mat model: " << materials_model << std::endl;
@@ -1056,7 +1166,6 @@ int main(int argc, char ** argv) {
         earthmodel::EarthModel earthModel;
         earthModel.SetPath(path);
         earthModel.LoadMaterialModel(materials_model);
-        //earthModel.LoadConcentricShellsFromLegacyFile(earth_model, depth*LeptonInjector::Constants::m, ice_angle*LeptonInjector::Constants::degrees);
         try{
 					earthModel.LoadEarthModel(earth_model);
         }
@@ -1073,21 +1182,7 @@ int main(int argc, char ** argv) {
             std::cerr << "Geo placement: " << geo->GetPlacement() << std::endl;
             std::cerr << "density: " << sectors[i].density->Evaluate(geo->GetPlacement().GetPosition()) << std::endl;
         }
-
-				/*
-        earthmodel::EarthModelService old_earthModel(
-                "DUNE",
-                path,
-                std::vector<std::string>({earth_model}),
-                std::vector<std::string>({materials_model}),
-                ice_type,
-                ice_angle*LeptonInjector::Constants::degrees,
-                depth*LeptonInjector::Constants::m);
-
-        */
-
         cont.SetEarthModel(std::shared_ptr<earthmodel::EarthModel>(&earthModel));
-        //cont.SetEarthModel(std::shared_ptr<earthmodel::EarthModelService>(&old_earthModel));
 
         cont.NameOutfile(output + ".h5");
         cont.NameLicFile(output + ".lic");
@@ -1098,4 +1193,7 @@ int main(int argc, char ** argv) {
         std::cout << "Failure!" << std::endl;
         std::cout << s << std::endl;
     }
+} catch(ExitStatus const & status) {
+    return status.status;
+}
 }
