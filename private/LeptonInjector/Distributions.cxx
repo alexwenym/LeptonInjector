@@ -712,7 +712,7 @@ double Cone::GenerationProbability(std::shared_ptr<earthmodel::EarthModel const>
     event_dir.normalize();
     double theta = acos(earthmodel::scalar_product(dir, event_dir));
     earthmodel::Vector3D cone_frame_dir = rotation.rotate(event_dir, true);
-    double phi = std::atan2(cone_frame_dir.GetY(). cone_frame_dir.GetX());
+    double phi = std::atan2(cone_frame_dir.GetY(), cone_frame_dir.GetX());
     if(theta >= min_angle and theta <= max_angle and phi >= min_azimuth and phi <= max_azimuth)
         return 1.0 / ((max_azimuth - min_azimuth) * (acos(min_angle) - acos(max_angle)));
     else
