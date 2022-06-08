@@ -554,9 +554,12 @@ protected:
 private:
     earthmodel::Vector3D dir;
     earthmodel::Quaternion rotation;
-    double opening_angle;
+    double min_angle;
+    double max_angle;
+    double min_azimuth;
+    double max_azimuth;
 public:
-    Cone(earthmodel::Vector3D dir, double opening_angle);
+    Cone(earthmodel::Vector3D dir, double min_angle, double max_angle, double min_azimuth, double max_azimuth);
 private:
     earthmodel::Vector3D SampleDirection(std::shared_ptr<LI_random> rand, std::shared_ptr<earthmodel::EarthModel const> earth_model, std::shared_ptr<CrossSectionCollection const> cross_sections, InteractionRecord const & record) const override;
     virtual double GenerationProbability(std::shared_ptr<earthmodel::EarthModel const> earth_model, std::shared_ptr<CrossSectionCollection const> cross_sections, InteractionRecord const & record) const override;
@@ -566,7 +569,10 @@ private:
     void save(Archive & archive, std::uint32_t const version) const {
         if(version == 0) {
             archive(::cereal::make_nvp("Direction", dir));
-            archive(::cereal::make_nvp("OpeningAngle", opening_angle));
+            archive(::cereal::make_nvp("MinAngle", min_angle));
+            archive(::cereal::make_nvp("MaxAngle", max_angle));
+            archive(::cereal::make_nvp("MinAzimuth", min_azimuth));
+            archive(::cereal::make_nvp("MaxAzimuth", max_azimuth));
             archive(cereal::virtual_base_class<PrimaryDirectionDistribution>(this));
         } else {
             throw std::runtime_error("Cone only supports version <= 0!");
@@ -576,10 +582,13 @@ private:
     static void load_and_construct(Archive & archive, cereal::construct<Cone> & construct, std::uint32_t const version) {
         if(version == 0) {
             earthmodel::Vector3D d;
-            double angle;
+            double min_angle, max_angle, min_azimuth, max_azimuth;
             archive(::cereal::make_nvp("Direction", d));
-            archive(::cereal::make_nvp("OpeningAngle", angle));
-            construct(d, angle);
+            archive(::cereal::make_nvp("MinAngle", min_angle));
+            archive(::cereal::make_nvp("MaxAngle", max_angle));
+            archive(::cereal::make_nvp("MinAzimuth", min_azimuth));
+            archive(::cereal::make_nvp("MaxAzimuth", max_azimuth));
+            construct(d, min_angle, max_angle, min_azimuth, max_azimuth);
             archive(cereal::virtual_base_class<PrimaryDirectionDistribution>(construct.ptr()));
         } else {
             throw std::runtime_error("Cone only supports version <= 0!");

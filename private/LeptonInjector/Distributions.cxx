@@ -687,7 +687,7 @@ bool FixedDirection::less(WeightableDistribution const & other) const {
 //---------------
 // class Cone : PrimaryDirectionDistribution
 //---------------
-Cone::Cone(earthmodel::Vector3D dir, double opening_angle) : dir(dir), opening_angle(opening_angle) {
+Cone::Cone(earthmodel::Vector3D dir, double min_angle, double max_angle, double min_azimuth, double max_azimuth) : dir(dir), min_angle(min_angle), max_angle(max_angle), min_azimuth(min_azimuth), max_azimuth(max_azimuth) {
     this->dir.normalize();
     if(this->dir == earthmodel::Vector3D(0,0,1)) {
         rotation = earthmodel::Quaternion(0,0,0,1);
@@ -700,8 +700,8 @@ Cone::Cone(earthmodel::Vector3D dir, double opening_angle) : dir(dir), opening_a
 }
 
 earthmodel::Vector3D Cone::SampleDirection(std::shared_ptr<LI_random> rand, std::shared_ptr<earthmodel::EarthModel const> earth_model, std::shared_ptr<CrossSectionCollection const> cross_sections, InteractionRecord const & record) const{
-    double theta = cos(rand->Uniform(acos(opening_angle), 1));
-    double phi = rand->Uniform(0, 2.0 * M_PI);
+    double theta = cos(rand->Uniform(acos(max_angle), acos(min_angle)));
+    double phi = rand->Uniform(min_azimuth, max_azimuth);
     earthmodel::Quaternion q;
     q.SetEulerAnglesZXZr(phi, theta, 0.0);
     return rotation.rotate(q.rotate(earthmodel::Vector3D(0,0,1), false), false);
@@ -711,8 +711,10 @@ double Cone::GenerationProbability(std::shared_ptr<earthmodel::EarthModel const>
     earthmodel::Vector3D event_dir(record.primary_momentum[1], record.primary_momentum[2], record.primary_momentum[3]);
     event_dir.normalize();
     double theta = acos(earthmodel::scalar_product(dir, event_dir));
-    if(theta < opening_angle)
-        return 1.0 / (2.0 * M_PI * (1.0 - cos(opening_angle)));
+    earthmodel::Vector3D cone_frame_dir = rotation.rotate(event_dir, true);
+    double phi = std::atan2(cone_frame_dir.GetY(). cone_frame_dir.GetX());
+    if(theta >= min_angle and theta <= max_angle and phi >= min_azimuth and phi <= max_azimuth)
+        return 1.0 / ((max_azimuth - min_azimuth) * (acos(min_angle) - acos(max_angle)));
     else
         return 0.0;
 }
@@ -732,7 +734,8 @@ bool Cone::equal(WeightableDistribution const & other) const {
         return false;
     else
         return (abs(1.0 - earthmodel::scalar_product(dir, x->dir)) < 1e-9
-            and opening_angle == x->opening_angle);
+            and min_angle == x->min_angle)
+            and max_angle == x-> max_angle;
 }
 
 bool Cone::less(WeightableDistribution const & other) const {
@@ -740,7 +743,9 @@ bool Cone::less(WeightableDistribution const & other) const {
     if(abs(1.0 - earthmodel::scalar_product(dir, x->dir)) < 1e-9) {
         return false;
     } else {
-        return opening_angle < x->opening_angle;
+        return std::tie(dir, min_angle, max_angle)
+            <
+            std::tie(x->dir, x->min_angle, x->max_angle);
     }
 }
 
